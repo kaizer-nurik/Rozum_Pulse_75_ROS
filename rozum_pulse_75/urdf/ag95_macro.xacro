@@ -2,7 +2,6 @@
 <robot xmlns:xacro="http://ros.org/wiki/xacro">
 
   <xacro:include filename="$(find rozum_pulse_75)/urdf/ag95_transmissions.xacro" />
-  <xacro:include filename="$(find rozum_pulse_75)/urdf/ag95_gazebo.xacro" />
 
   <xacro:macro name="dh_ag95_gripper"
     params="
@@ -14,7 +13,7 @@
 
     <!-- Add URDF transmission elements (for ros_control) -->
     <xacro:ag95_transmission prefix="${prefix}" hw_interface="${transmission_hw_interface}" />
-    <xacro:ag95_gazebo prefix="${prefix}" />
+    <!-- <xacro:ag95_gazebo prefix="${prefix}" /> -->
 
     <xacro:property name="lower_limit" value="0" />
     <xacro:property name="upper_limit" value="0.93" />

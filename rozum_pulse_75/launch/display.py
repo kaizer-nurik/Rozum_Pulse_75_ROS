@@ -14,8 +14,13 @@ def generate_launch_description():
     rviz_config = os.path.join(pkg_rozum_pulse_75, 'urdf.rviz')
 
 
-    xacro_file = get_package_share_path('rozum_pulse_75') / 'urdf' / 'rozum_pulse_75.urdf'
+    xacro_file = get_package_share_path('rozum_pulse_75') / 'urdf' / 'rozum_pulse_75.xacro'
+    urdf_file = get_package_share_path('rozum_pulse_75') / 'urdf' / 'rozum_pulse_75.urdf'
     robot_description_config = xacro.process_file(str(xacro_file)).toxml()
+    
+    with open(urdf_file, 'w') as file:
+        file.write(robot_description_config)
+
     return LaunchDescription([
         # joint_state_publisher_gui
         Node(
