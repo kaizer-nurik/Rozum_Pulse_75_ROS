@@ -1,0 +1,539 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+
+<robot
+  name="rozum_pulse_75" xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:include filename="$(find rozum_pulse_75)/urdf/ag95.xacro" />
+
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <mass
+        value="0.000000" />
+      <inertia
+        ixx="0.000000"
+        ixy="0.000000"
+        ixz="0.000000"
+        iyy="0.000000"
+        iyz="0.000000"
+        izz="0.000000" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rozum_pulse_75/meshes/manipulator/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rozum_pulse_75/meshes/manipulator/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="world" />
+  <joint name="world_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="world" />
+    <child link="base_link" />
+  </joint>
+  <link
+    name="link1_dummy" />
+
+  <joint
+    name="joint1"
+    type="revolute">
+      <origin
+        xyz="0.0 0.0 0.0"
+      rpy="0 0 0" />
+    <motor_params gear_ratio="100"
+     rotor_inertia="0.000108" />
+    <parent
+      link="base_link" />
+    <child
+      link="link1_dummy" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-6.28"
+      upper="6.28"
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="link1">
+    <inertial>
+      <origin
+        xyz="0.000000 -0.048113 -0.005173"
+        rpy="0 0 0" />
+      <mass
+        value="2.635479" />
+      <inertia
+        ixx="0.00574463"
+        ixy="0.00000001"
+        ixz="0.000000"
+        iyy="0.00314996"
+        iyz="-0.0006622"
+        izz="0.00545542" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rozum_pulse_75/meshes/manipulator/link1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rozum_pulse_75/meshes/manipulator/link1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint1_post_transform"
+    type="fixed">
+    <origin
+      xyz="0.0 0.0 0.215"
+      rpy="1.5707963 0 0" />
+    <motor_params gear_ratio="100"
+     rotor_inertia="0.000108" />
+    <parent
+      link="link1_dummy" />
+    <child
+      link="link1" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-6.28"
+      upper="6.28"
+      effort="10"
+      velocity="10" />
+  </joint>
+
+  <link
+    name="link2_dummy" />
+  <joint
+    name="joint2"
+    type="revolute">
+    <origin
+      xyz="0.0 0.0 0.0"
+      rpy="0 0 0" />
+    <motor_params gear_ratio="100"
+     rotor_inertia="0.000108" />
+    <parent
+      link="link1" />
+    <child
+      link="link2_dummy" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.6108652382"
+      upper="3.76991118431"
+      effort="10"
+      velocity="10" />
+  </joint>
+
+
+  <link
+    name="link2">
+    <inertial>
+      <origin
+        xyz="-0.18221343 0.000000 0.09945403"
+        rpy="0 0 0" />
+      <mass
+        value="2.03639714" />
+      <inertia
+        ixx="0.00328492"
+        ixy="0.000000"
+        ixz="0.00467611"
+        iyy="0.03067676"
+        iyz="0.000000"
+        izz="0.02924741" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rozum_pulse_75/meshes/manipulator/link2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.24314 0.24314 0.24314 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rozum_pulse_75/meshes/manipulator/link2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint2_post_transform"
+    type="fixed">
+    <origin
+      xyz="-0.286 -0.0 0.119"
+      rpy="0 0 0" />
+    <motor_params gear_ratio="100"
+     rotor_inertia="0.000108" />
+    <parent
+      link="link2_dummy" />
+    <child
+      link="link2" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.6108652382"
+      upper="3.76991118431"
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="link3_dummy" />
+  <joint
+    name="joint3"
+    type="revolute">
+    <origin
+      xyz="0.0 0.0 0.0"
+      rpy="0 0 0" />
+    <motor_params gear_ratio="100"
+     rotor_inertia="0.000170" />
+    <parent
+      link="link2" />
+    <child
+      link="link3_dummy" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2.79252680319"
+      upper="2.79252680319"
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="link3">
+    <inertial>
+      <origin
+        xyz="-0.19839838 0.000000 0.04913607"
+        rpy="0 0 0" />
+      <mass
+        value="1.60265591" />
+      <inertia
+        ixx="0.00237088"
+        ixy="-0.00000001"
+        ixz="-0.0027249"
+        iyy="0.01624523"
+        iyz="0.00000000"
+        izz="0.01492074" />
+    </inertial>
+    <visual>
+      <origin
+         xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />  
+      <geometry>
+        <mesh
+          filename="package://rozum_pulse_75/meshes/manipulator/link3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.24314 0.24314 0.24314 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+         xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />  
+      <geometry>
+        <mesh
+          filename="package://rozum_pulse_75/meshes/manipulator/link3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint3_post_transform"
+    type="fixed">
+    <origin
+      xyz="-0.26 -0.0 -0.093"
+      rpy="0 0 0" />
+    <parent
+      link="link3_dummy" />
+    <child
+      link="link3" />
+    
+  </joint>
+  <link
+    name="link4_dummy" />
+  <joint
+    name="joint4"
+    type="revolute">
+    <origin
+      xyz="0.0 0.0 0.0"
+      rpy="0 0 0" />
+    <motor_params gear_ratio="100"
+     rotor_inertia="0.000170" />
+    <parent
+      link="link3" />
+    <child
+      link="link4_dummy" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-4.41568300755"
+      upper="4.38077642251"
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="link4">
+    <inertial>
+      <origin
+        xyz="0.000000 -0.07193817 0.1201976"
+        rpy="0 0 0" />
+      <mass
+        value="0.83986351" />
+      <inertia
+        ixx="0.00167115"
+        ixy="0.000000"
+        ixz="0.000000"
+        iyy="0.00037091"
+        iyz="-0.00003977"
+        izz="0.00171639" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rozum_pulse_75/meshes/manipulator/link4.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rozum_pulse_75/meshes/manipulator/link4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint4_post_transform"
+    type="fixed">
+    <origin
+      xyz="0.0 0.0 0.093"
+      rpy="1.5707963 0 0" />
+    <motor_params gear_ratio="100"
+     rotor_inertia="0.000170" />
+    <parent
+      link="link4_dummy" />
+    <child
+      link="link4" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-4.41568300755"
+      upper="4.38077642251"
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="link5_dummy" />
+  <joint
+    name="joint5"
+    type="revolute">
+    <origin
+      xyz="0.0 0.0 0.0"
+      rpy="0 0 0" />
+    <motor_params gear_ratio="100"
+     rotor_inertia="0.000170" />
+    <parent
+      link="link4" />
+    <child
+      link="link5_dummy" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-6.28"
+      upper="6.28"
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="link5">
+    <inertial>
+      <origin
+        xyz="0.000000 0.03592275 0.1667588"
+        rpy="0 0 0" />
+      <mass
+        value="0.69108633" />
+      <inertia
+        ixx="0.00074292"
+        ixy="0"
+        ixz="0"
+        iyy="0.00029829"
+        iyz="0.00007183"
+        izz="0.00071953" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rozum_pulse_75/meshes/manipulator/link5.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.18039 0.18039 0.18039 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rozum_pulse_75/meshes/manipulator/link5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint5_post_transform"
+    type="fixed">
+    <origin
+      xyz="0.0 0.0 0.1681"
+      rpy="-1.5707963 0 0" />
+    <parent
+      link="link5_dummy" />
+    <child
+      link="link5" />
+  </joint>
+
+  <link
+    name="link6_dummy" />
+  <joint
+    name="joint6"
+    type="revolute">
+    <origin
+      xyz="0.0 0.0 0.0"
+      rpy="0 0 0" />
+   <motor_params gear_ratio="100"
+     rotor_inertia="0.0000083" />
+    <parent
+      link="link5" />
+    <child
+      link="link6_dummy" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-6.28"
+      upper="6.28"
+      effort="10"
+      velocity="10" />
+  </joint>
+  <link
+    name="link6">
+    <inertial>
+      <origin
+        xyz="0.00171740 -0.00095207 0.02"
+        rpy="0 0 0" />
+      <mass
+        value="0.20018162" />
+      <inertia
+        ixx="0.00008258"
+        ixy="-0.00000345"
+        ixz="0.00000022"
+        iyy="0.00007742"
+        iyz="-0.00000061"
+        izz="0.00011673" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rozum_pulse_75/meshes/manipulator/link6.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.24314 0.24314 0.24314 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rozum_pulse_75/meshes/manipulator/link6.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint6_post_transform"
+    type="fixed">  
+    <origin
+      xyz="0.0 0.0 0.1196"
+      rpy="0 0 0" />
+    <parent
+      link="link6_dummy" />
+    <child
+      link="link6" />
+  </joint>
+
+  <joint
+    name="gripper_joint"
+    type="fixed">  
+    <origin
+      xyz="0.0 0.0 0.0"
+      rpy="0 0 0" />
+    <parent
+      link="link6" />
+    <child
+      link="gripper_base" />
+  </joint>
+</robot>
