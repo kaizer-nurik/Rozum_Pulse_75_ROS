@@ -2,11 +2,8 @@
 <!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
      Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
      For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
-
 <robot
-  name="rozum_pulse_75" xmlns:xacro="http://ros.org/wiki/xacro">
-  <xacro:include filename="$(find ros_solid)/urdf/ag95.xacro" />
-
+  name="d">
   <link
     name="base_link">
     <inertial>
@@ -47,35 +44,6 @@
       </geometry>
     </collision>
   </link>
-  <link name="world" />
-  <joint name="world_joint" type="fixed">
-    <origin xyz="0 0 0" rpy="0 0 0" />
-    <parent link="world" />
-    <child link="base_link" />
-  </joint>
-  <link
-    name="link1_dummy" />
-
-  <joint
-    name="joint1"
-    type="revolute">
-      <origin
-        xyz="0.0 0.0 0.0"
-      rpy="0 0 0" />
-    <motor_params gear_ratio="100"
-     rotor_inertia="0.000108" />
-    <parent
-      link="base_link" />
-    <child
-      link="link1_dummy" />
-    <axis
-      xyz="0 0 1" />
-    <limit
-      lower="-6.28"
-      upper="6.28"
-      effort="10"
-      velocity="10" />
-  </joint>
   <link
     name="link1">
     <inertial>
@@ -117,15 +85,15 @@
     </collision>
   </link>
   <joint
-    name="joint1_post_transform"
-    type="fixed">
+    name="joint1"
+    type="revolute">
     <origin
       xyz="0.0 0.0 0.215"
       rpy="1.5707963 0 0" />
     <motor_params gear_ratio="100"
      rotor_inertia="0.000108" />
     <parent
-      link="link1_dummy" />
+      link="base_link" />
     <child
       link="link1" />
     <axis
@@ -136,31 +104,6 @@
       effort="10"
       velocity="10" />
   </joint>
-
-  <link
-    name="link2_dummy" />
-  <joint
-    name="joint2"
-    type="revolute">
-    <origin
-      xyz="0.0 0.0 0.0"
-      rpy="0 0 0" />
-    <motor_params gear_ratio="100"
-     rotor_inertia="0.000108" />
-    <parent
-      link="link1" />
-    <child
-      link="link2_dummy" />
-    <axis
-      xyz="0 0 1" />
-    <limit
-      lower="-0.6108652382"
-      upper="3.76991118431"
-      effort="10"
-      velocity="10" />
-  </joint>
-
-
   <link
     name="link2">
     <inertial>
@@ -179,7 +122,7 @@
     </inertial>
     <visual>
       <origin
-        xyz="0.0 0.0 0.0"
+        xyz="0 0 0"
         rpy="0 0 0" />
       <geometry>
         <mesh
@@ -193,7 +136,7 @@
     </visual>
     <collision>
       <origin
-        xyz="0.0 0.0 0.0"
+        xyz="0 0 0"
         rpy="0 0 0" />
       <geometry>
         <mesh
@@ -202,15 +145,15 @@
     </collision>
   </link>
   <joint
-    name="joint2_post_transform"
-    type="fixed">
+    name="joint2"
+    type="revolute">
     <origin
       xyz="-0.286 -0.0 0.119"
       rpy="0 0 0" />
     <motor_params gear_ratio="100"
      rotor_inertia="0.000108" />
     <parent
-      link="link2_dummy" />
+      link="link1" />
     <child
       link="link2" />
     <axis
@@ -218,28 +161,6 @@
     <limit
       lower="-0.6108652382"
       upper="3.76991118431"
-      effort="10"
-      velocity="10" />
-  </joint>
-  <link
-    name="link3_dummy" />
-  <joint
-    name="joint3"
-    type="revolute">
-    <origin
-      xyz="0.0 0.0 0.0"
-      rpy="0 0 0" />
-    <motor_params gear_ratio="100"
-     rotor_inertia="0.000170" />
-    <parent
-      link="link2" />
-    <child
-      link="link3_dummy" />
-    <axis
-      xyz="0 0 1" />
-    <limit
-      lower="-2.79252680319"
-      upper="2.79252680319"
       effort="10"
       velocity="10" />
   </joint>
@@ -261,8 +182,8 @@
     </inertial>
     <visual>
       <origin
-         xyz="0.0 0.0 0.0"
-        rpy="0 0 0" />  
+        xyz="0 0 0"
+        rpy="0 0 0" />
       <geometry>
         <mesh
           filename="package://ros_solid/meshes/link3.STL" />
@@ -275,8 +196,8 @@
     </visual>
     <collision>
       <origin
-         xyz="0.0 0.0 0.0"
-        rpy="0 0 0" />  
+        xyz="0 0 0"
+        rpy="0 0 0" />
       <geometry>
         <mesh
           filename="package://ros_solid/meshes/link3.STL" />
@@ -284,36 +205,22 @@
     </collision>
   </link>
   <joint
-    name="joint3_post_transform"
-    type="fixed">
-    <origin
-      xyz="-0.26 -0.0 -0.093"
-      rpy="0 0 0" />
-    <parent
-      link="link3_dummy" />
-    <child
-      link="link3" />
-    
-  </joint>
-  <link
-    name="link4_dummy" />
-  <joint
-    name="joint4"
+    name="joint3"
     type="revolute">
     <origin
-      xyz="0.0 0.0 0.0"
+      xyz="-0.26 -0.0 -0.093"
       rpy="0 0 0" />
     <motor_params gear_ratio="100"
      rotor_inertia="0.000170" />
     <parent
-      link="link3" />
+      link="link2" />
     <child
-      link="link4_dummy" />
+      link="link3" />
     <axis
       xyz="0 0 1" />
     <limit
-      lower="-4.41568300755"
-      upper="4.38077642251"
+      lower="-2.79252680319"
+      upper="2.79252680319"
       effort="10"
       velocity="10" />
   </joint>
@@ -358,15 +265,15 @@
     </collision>
   </link>
   <joint
-    name="joint4_post_transform"
-    type="fixed">
+    name="joint4"
+    type="revolute">
     <origin
       xyz="0.0 0.0 0.093"
       rpy="1.5707963 0 0" />
     <motor_params gear_ratio="100"
      rotor_inertia="0.000170" />
     <parent
-      link="link4_dummy" />
+      link="link3" />
     <child
       link="link4" />
     <axis
@@ -374,28 +281,6 @@
     <limit
       lower="-4.41568300755"
       upper="4.38077642251"
-      effort="10"
-      velocity="10" />
-  </joint>
-  <link
-    name="link5_dummy" />
-  <joint
-    name="joint5"
-    type="revolute">
-    <origin
-      xyz="0.0 0.0 0.0"
-      rpy="0 0 0" />
-    <motor_params gear_ratio="100"
-     rotor_inertia="0.000170" />
-    <parent
-      link="link4" />
-    <child
-      link="link5_dummy" />
-    <axis
-      xyz="0 0 1" />
-    <limit
-      lower="-6.28"
-      upper="6.28"
       effort="10"
       velocity="10" />
   </joint>
@@ -440,31 +325,17 @@
     </collision>
   </link>
   <joint
-    name="joint5_post_transform"
-    type="fixed">
+    name="joint5"
+    type="revolute">
     <origin
       xyz="0.0 0.0 0.1681"
       rpy="-1.5707963 0 0" />
-    <parent
-      link="link5_dummy" />
-    <child
-      link="link5" />
-  </joint>
-
-  <link
-    name="link6_dummy" />
-  <joint
-    name="joint6"
-    type="revolute">
-    <origin
-      xyz="0.0 0.0 0.0"
-      rpy="0 0 0" />
-   <motor_params gear_ratio="100"
+    <motor_params gear_ratio="100"
      rotor_inertia="0.0000083" />
     <parent
-      link="link5" />
+      link="link4" />
     <child
-      link="link6_dummy" />
+      link="link5" />
     <axis
       xyz="0 0 1" />
     <limit
@@ -514,26 +385,23 @@
     </collision>
   </link>
   <joint
-    name="joint6_post_transform"
-    type="fixed">  
+    name="joint6"
+    type="revolute">
     <origin
       xyz="0.0 0.0 0.1196"
       rpy="0 0 0" />
+    <motor_params gear_ratio="100"
+     rotor_inertia="0.0000083" />
     <parent
-      link="link6_dummy" />
+      link="link5" />
     <child
       link="link6" />
-  </joint>
-
-  <joint
-    name="gripper_joint"
-    type="fixed">  
-    <origin
-      xyz="0.0 0.0 0.0"
-      rpy="0 0 0" />
-    <parent
-      link="link6" />
-    <child
-      link="gripper_base" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-6.28"
+      upper="6.28"
+      effort="10"
+      velocity="10" />
   </joint>
 </robot>

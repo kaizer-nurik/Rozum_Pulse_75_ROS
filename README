@@ -1,0 +1,7 @@
+```
+
+colcon build --symlink-install
+. ./install/setup.bash
+ros2 launch ros_solid display.py
+
+```
