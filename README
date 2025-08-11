@@ -2,6 +2,6 @@
 
 colcon build --symlink-install
 . ./install/setup.bash
-ros2 launch ros_solid display.py
+ros2 launch rozum_pulse_75 display.py
 
 ```
