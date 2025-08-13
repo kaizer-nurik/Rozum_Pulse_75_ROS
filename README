@@ -5,3 +5,16 @@ colcon build --symlink-install
 ros2 launch rozum_pulse_75 display.py
 
 ```
+
+
+WSL2 usb connect:
+```
+usbipd list
+usbipd bind --busid 1-1
+usbipd attach --wsl --busid 1-1
+```
+
+realsense startup
+```
+usbipd attach --wsl --busid 1-1
+```
