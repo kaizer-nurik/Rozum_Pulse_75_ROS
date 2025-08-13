@@ -5,6 +5,7 @@
 
 <robot
   name="rozum_pulse_75" xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:arg name="rozum_base_url" default="http://10.10.10.20:8081"/>
   <xacro:include filename="$(find rozum_pulse_75)/urdf/ag95.xacro" />
 
   <link
@@ -536,4 +537,21 @@
     <child
       link="gripper_base" />
   </joint>
+  <ros2_control name="RozumSystem" type="system">
+    <hardware>
+      <plugin>rozum_pulse_75_hardware/RozumSystemHardware</plugin>
+      <param name="base_url">10.10.10.20</param>
+      <param name="command_interface">position</param>
+      <param name="joints_order">joint1,joint2,joint3,joint4,joint5,joint6</param>
+      <param name="write_speed_percent">20</param>
+      <param name="write_motion_type">JOINT</param>
+      <param name="use_pose_endpoint">true</param>
+    </hardware>
+    <joint name="joint1"><command_interface name="position"/><state_interface name="position"/><state_interface name="velocity"/></joint>
+    <joint name="joint2"><command_interface name="position"/><state_interface name="position"/><state_interface name="velocity"/></joint>
+    <joint name="joint3"><command_interface name="position"/><state_interface name="position"/><state_interface name="velocity"/></joint>
+    <joint name="joint4"><command_interface name="position"/><state_interface name="position"/><state_interface name="velocity"/></joint>
+    <joint name="joint5"><command_interface name="position"/><state_interface name="position"/><state_interface name="velocity"/></joint>
+    <joint name="joint6"><command_interface name="position"/><state_interface name="position"/><state_interface name="velocity"/></joint>
+  </ros2_control>
 </robot>

@@ -1,0 +1,25 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: rozum_pulse_75
+    relative_path: urdf/rozum_pulse_75.urdf
+  srdf:
+    relative_path: config/rozum_pulse_75.srdf
+  package_settings:
+    author_name: Milana
+    author_email: qrvmil@gmail.com
+    generated_timestamp: 1754919969
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
+  modified_urdf:
+    xacros:
+      - control_xacro
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
