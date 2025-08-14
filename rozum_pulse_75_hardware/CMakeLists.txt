@@ -13,6 +13,7 @@ add_library(${PROJECT_NAME} SHARED
   src/rozum_system.cpp
 )
 
+set(CMAKE_BUILD_TYPE DEBUG)
 get_filename_component(WS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 set(RAPIDJSON_LOCAL_INCLUDE "${WS_ROOT}/rapidjson/include")
 

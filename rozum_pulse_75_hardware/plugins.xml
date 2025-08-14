@@ -1,9 +1,8 @@
 <library path="rozum_pulse_75_hardware">
-  <class name="RozumPulse75System"
-         type="rozum_pulse_75_hardware::RozumPulse75System"
-         base_class_type="hardware_interface::SystemInterface">
-    <description>
-      ROS2 Control hardware interface for Rozum Pulse 75.
-    </description>
+  <class
+    name="rozum_pulse_75_hardware/RozumSystemHardware"
+    type="rozum_pulse_75_hardware::RozumSystemHardware"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>Read-only system for Rozum Pulse 75</description>
   </class>
 </library>
