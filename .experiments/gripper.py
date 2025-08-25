@@ -1,7 +1,7 @@
-from pyDHgripper.pyDHgripper import AG95
+from pyDHgripper import AG95
 import time
 
-gripper = AG95(port='COM3')
+gripper = AG95(port='/dev/robot/dh_ag95_gripper')
 
 
 gripper.set_pos(val=0)

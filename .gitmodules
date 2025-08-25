@@ -1,0 +1,6 @@
+[submodule "dh_ag95_gripper_ros2"]
+	path = dh_ag95_gripper_ros2
+	url = https://github.com/kaizer-nurik/dh_ag95_gripper_ros2.git
+[submodule "serial"]
+	path = serial
+	url = https://github.com/tylerjw/serial.git
