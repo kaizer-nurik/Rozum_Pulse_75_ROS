@@ -152,7 +152,7 @@ hardware_interface::return_type RozumSystemHardware::read(const rclcpp::Time &, 
 hardware_interface::return_type RozumSystemHardware::write(const rclcpp::Time &, const rclcpp::Duration &)
 {
   
-  const std::string url = base_url_ + "/pose?speed=10&motionType=joint";
+  const std::string url = "http://10.10.10.20:8081/pose?speed=10&motionType=joint";
 
   
   std::string json_payload;
@@ -162,7 +162,11 @@ hardware_interface::return_type RozumSystemHardware::write(const rclcpp::Time &,
     for (size_t i = 0; i < 6; ++i)
     {
       std::string joint_name = "joint" + std::to_string(i + 1);
-      const double deg = get_command(joint_name) * 180.0 / PI;
+      std::string name_pos = joint_name + "/" + hardware_interface::HW_IF_POSITION;
+      const double deg = get_command(name_pos) * 180.0 / PI;
+      if(std::isnan(deg)){
+        return hardware_interface::return_type::OK;
+      }
       json_payload += std::to_string(deg);
       if (i + 1 < 6) json_payload += ",";
     }

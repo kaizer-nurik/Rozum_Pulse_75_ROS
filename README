@@ -5,3 +5,6 @@ colcon build --symlink-install
 ros2 launch rozum_pulse_75 display.py
 
 ```
+
+
+docker run -it --rm   --net=host   -e DISPLAY=$DISPLAY   -e QT_X11_NO_MITSHM=1   -v $PWD:/workspace/src   -v /tmp/.X11-unix:/tmp/.X11-unix:rw   moveit/moveit2:jazzy-release
