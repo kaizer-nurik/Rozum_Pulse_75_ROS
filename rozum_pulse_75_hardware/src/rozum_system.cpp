@@ -152,13 +152,13 @@ hardware_interface::return_type RozumSystemHardware::read(const rclcpp::Time &, 
 hardware_interface::return_type RozumSystemHardware::write(const rclcpp::Time &, const rclcpp::Duration &)
 {
   
-  const std::string url = "http://10.10.10.20:8081/pose?speed=10&motionType=joint";
+  const std::string url = "http://10.10.10.20:8081/poses/run?speed=10&motionType=joint";
 
   
   std::string json_payload;
 
   {
-    json_payload = R"({"angles":[)";
+    json_payload = R"([{"angles":[)";
     for (size_t i = 0; i < 6; ++i)
     {
       std::string joint_name = "joint" + std::to_string(i + 1);
@@ -170,7 +170,7 @@ hardware_interface::return_type RozumSystemHardware::write(const rclcpp::Time &,
       json_payload += std::to_string(deg);
       if (i + 1 < 6) json_payload += ",";
     }
-    json_payload += "]}";
+    json_payload += "]}]";
   }
 
   CURL* curl = curl_easy_init();
