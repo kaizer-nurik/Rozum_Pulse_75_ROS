@@ -4,3 +4,6 @@
 [submodule "ros2_aruco"]
 	path = ros2_aruco
 	url = https://github.com/JMU-ROBOTICS-VIVA/ros2_aruco.git
+[submodule "ros2-aruco-pose-estimation"]
+	path = ros2-aruco-pose-estimation
+	url = https://github.com/kaizer-nurik/ros2-aruco-pose-estimation
