@@ -1,20 +1,17 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>rozum_pulse_75_hardware</name>
+  <name>rozum_pulse_75_control</name>
   <version>0.0.1</version>
-  <description>ROS2 Control hardware interface for Rozum Pulse 75 (read-only)</description>
+  <description>ROS2 Control controllers for Rozum75</description>
 
-  <maintainer email="kerimovnm@mail.ru">Nuraddin Kerimov</maintainer>
-  <author email="qrvmil@yandex.ru">Milana Krivova</author>
+  <maintainer email="kerimovnm@mail.ru">Kerimov Nuraddin</maintainer>
   <license>Apache-2.0</license>
-
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
   <depend>hardware_interface</depend>
   <depend>pluginlib</depend>
-  <depend>rapidjson</depend>
-  <depend>curl</depend>
+  <depend>ros2_control</depend>
   
 
   <export>

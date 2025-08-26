@@ -189,6 +189,7 @@ hardware_interface::return_type RozumSystemHardware::write(const rclcpp::Time &,
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);
   curl_easy_setopt(curl, CURLOPT_POST, 1L);
+  curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_payload.c_str());
   curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, json_payload.size());
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3L);

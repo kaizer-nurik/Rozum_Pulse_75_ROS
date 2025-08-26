@@ -5,8 +5,6 @@
 
 <robot
   name="rozum_pulse_75" xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:arg name="rozum_base_url" default="http://10.10.10.20:8081"/>
-  <xacro:include filename="$(find rozum_pulse_75)/urdf/ag95.xacro" />
 
   <link
     name="base_link">

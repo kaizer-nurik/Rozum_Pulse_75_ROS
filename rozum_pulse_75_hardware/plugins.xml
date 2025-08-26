@@ -3,6 +3,6 @@
     name="rozum_pulse_75_hardware/RozumSystemHardware"
     type="rozum_pulse_75_hardware::RozumSystemHardware"
     base_class_type="hardware_interface::SystemInterface">
-    <description>Read-only system for Rozum Pulse 75</description>
+    <description>Read and write through REST API for Rozum Pulse 75</description>
   </class>
 </library>
