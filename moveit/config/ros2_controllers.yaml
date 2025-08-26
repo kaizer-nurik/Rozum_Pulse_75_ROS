@@ -1,0 +1,17 @@
+# This config file is used by ros2_control
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz
+
+    manip_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+manip_controller:
+  ros__parameters:
+    update_rate: 100  
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster: true

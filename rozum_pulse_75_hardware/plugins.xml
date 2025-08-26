@@ -1,0 +1,8 @@
+<library path="rozum_pulse_75_hardware">
+  <class
+    name="rozum_pulse_75_hardware/RozumSystemHardware"
+    type="rozum_pulse_75_hardware::RozumSystemHardware"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>Read and write through REST API for Rozum Pulse 75</description>
+  </class>
+</library>
