@@ -17,18 +17,31 @@ static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* use
   return size * nmemb;
 }
 
-// std::vector<hardware_interface::CommandInterface> RozumSystemHardware::export_command_interfaces()
-// {
-//   std::vector<hardware_interface::CommandInterface> out;
-//   out.reserve(info_.joints.size());
+std::vector<hardware_interface::CommandInterface> RozumSystemHardware::export_command_interfaces()
+{
+  std::vector<hardware_interface::CommandInterface> out;
+  out.reserve(info_.joints.size());
+  joint_commands_.resize(info_.joints.size());
+  for (size_t i = 0; i < info_.joints.size(); ++i)
+  {
+    const auto & name = info_.joints[i].name; // "joint1".."joint6"
+    out.emplace_back(name, hardware_interface::HW_IF_POSITION, &joint_commands_[i]);
+  }
+  return out;
+}
 
-//   for (size_t i = 0; i < info_.joints.size(); ++i)
-//   {
-//     const auto & name = info_.joints[i].name; // "joint1".."joint6"
-//     out.emplace_back(name, hardware_interface::HW_IF_POSITION, &joint_commands_[i]);
-//   }
-//   return out;
-// }
+std::vector<hardware_interface::StateInterface> RozumSystemHardware::export_state_interfaces()
+{
+  std::vector<hardware_interface::StateInterface> out;
+  out.reserve(info_.joints.size());
+
+  for (size_t i = 0; i < info_.joints.size(); ++i)
+  {
+    const auto & name = info_.joints[i].name; // "joint1".."joint6"
+    out.emplace_back(name, hardware_interface::HW_IF_POSITION, &joint_positions_[i]);
+  }
+  return out;
+}
 
 hardware_interface::CallbackReturn RozumSystemHardware::on_init(const hardware_interface::HardwareInfo & info)
 {
@@ -55,7 +68,9 @@ hardware_interface::CallbackReturn RozumSystemHardware::on_init(const hardware_i
 hardware_interface::return_type RozumSystemHardware::read(const rclcpp::Time &, const rclcpp::Duration &)
 {
   //const std::string url = base_url_ + "/status/motors";
-  const std::string url = "http://10.10.10.20:8081/pose";
+  // const std::string url = "http://10.10.10.20:8081/pose";
+  const std::string url = base_url_ + "/pose";
+
 
   CURL* curl = curl_easy_init();
   if (!curl) {
@@ -137,7 +152,7 @@ hardware_interface::return_type RozumSystemHardware::read(const rclcpp::Time &, 
         joint_positions_[joint_id] = deg * PI / 180.0;
         std::string joint_name = "joint" + std::to_string(joint_id + 1);
         std::string name_pos = joint_name + "/" + hardware_interface::HW_IF_POSITION;
-        set_state(name_pos, joint_positions_[joint_id]);
+        // set_state(name_pos, joint_positions_[joint_id]);
         joint_id++;
           }
       }
@@ -151,28 +166,41 @@ hardware_interface::return_type RozumSystemHardware::read(const rclcpp::Time &, 
 
 hardware_interface::return_type RozumSystemHardware::write(const rclcpp::Time &, const rclcpp::Duration &)
 {
-  
-  const std::string url = "http://10.10.10.20:8081/poses/run?speed=10&motionType=joint";
+    
+  // const std::string url = "http://10.10.10.20:8081/poses/run?speed=10&motionType=joint";
 
-  
+  const std::string url = base_url_ + "/poses/run?speed=10&motionType=joint";
   std::string json_payload;
 
   {
     json_payload = R"([{"angles":[)";
+    bool all_zeros = true;
     for (size_t i = 0; i < 6; ++i)
     {
       std::string joint_name = "joint" + std::to_string(i + 1);
       std::string name_pos = joint_name + "/" + hardware_interface::HW_IF_POSITION;
-      const double deg = get_command(name_pos) * 180.0 / PI;
+      // const double deg = get_command(name_pos) * 180.0 / PI;
+      const double deg = this->joint_commands_[i] * 180.0 / PI;
       if(std::isnan(deg)){
         return hardware_interface::return_type::OK;
+      }
+      if(deg != 0.0){
+        all_zeros = false;
       }
       json_payload += std::to_string(deg);
       if (i + 1 < 6) json_payload += ",";
     }
     json_payload += "]}]";
+    // hardcode to skip zeros at startup
+    if(all_zeros && ignore_write_for_zeros){
+      RCLCPP_INFO(rclcpp::get_logger("RozumSystemHardware"), "all zeros, skipping write");
+      return hardware_interface::return_type::OK;
+    }
+    if(!all_zeros && ignore_write_for_zeros){
+      ignore_write_for_zeros = false;
+    }
   }
-
+  RCLCPP_INFO(rclcpp::get_logger("RozumSystemHardware"), "write json_payload: %s", json_payload.c_str());
   CURL* curl = curl_easy_init();
   if (!curl) {
     RCLCPP_ERROR(rclcpp::get_logger("RozumSystemHardware"), "curl_easy_init() failed (write)");

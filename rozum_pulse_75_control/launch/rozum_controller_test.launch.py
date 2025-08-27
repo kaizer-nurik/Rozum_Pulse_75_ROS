@@ -15,6 +15,15 @@ import xacro
 def generate_launch_description():
     # Declare arguments
     declared_arguments = []
+    
+    # may not work
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "base_url",
+            default_value="http://10.10.10.20:8081",
+            description="URL of the manipilator. Example: http://10.10.10.20:8081",
+        )
+    )
     declared_arguments.append(
         DeclareLaunchArgument(
             "com_port",
@@ -55,6 +64,8 @@ def generate_launch_description():
     )
 
     # Initialize Arguments
+    base_url = LaunchConfiguration("base_url")
+    
     com_port = LaunchConfiguration("com_port")
     prefix = LaunchConfiguration("prefix")
     use_mock_hardware = LaunchConfiguration("use_mock_hardware")
@@ -64,7 +75,7 @@ def generate_launch_description():
     # Get URDF via xacro
 
     xacro_file = get_package_share_path('rozum_pulse_75_control') / 'urdf' / 'rozum_pulse_75_with_gripper.xacro'
-    robot_description_config = xacro.process_file(str(xacro_file),com_port=com_port,prefix=prefix,
+    robot_description_config = xacro.process_file(str(xacro_file),base_url=base_url, com_port=com_port,prefix=prefix,
                                                   use_mock_hardware=use_mock_hardware,mock_sensor_commands=mock_sensor_commands).toxml()
     
     robot_description = {"robot_description": robot_description_config}

@@ -12,6 +12,7 @@
 
   <depend>rclcpp</depend>
   <depend>hardware_interface</depend>
+  <depend>ros2_control</depend>
   <depend>pluginlib</depend>
   <depend>rapidjson</depend>
   <depend>curl</depend>

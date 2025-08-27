@@ -30,5 +30,5 @@ rozum_joint_controller:
       - position
     state_interfaces:
       - position
-      - velocity
-    allow_nonzero_velocity_at_trajectory_end: true
+    set_last_command_interface_value_as_state_on_activation: false
+    
