@@ -22,6 +22,11 @@
 #include <string>
 #include <vector>
 
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp/duration.hpp>
+#include <trajectory_msgs/msg/joint_trajectory.hpp>
+
+
 #include "angles/angles.h"
 #include "controller_interface/helpers.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
@@ -47,6 +52,218 @@ JointTrajectoryController::JointTrajectoryController()
 : controller_interface::ControllerInterface(), dof_(0), num_cmd_joints_(0)
 {
 }
+
+
+// HELPERS FUNCTIONS BEGIN
+
+size_t JointTrajectoryController::curlWriteCb_(char* ptr, size_t size, size_t nmemb, void* userdata)
+{
+  auto* s = static_cast<std::string*>(userdata);
+  s->append(ptr, size * nmemb);
+  return size * nmemb;
+}
+
+bool JointTrajectoryController::httpPut_(
+  const std::string& url, const std::string& payload,
+  long& http_code, std::string& resp, std::string& err)
+{
+  CURL* curl = curl_easy_init();
+  if (!curl) { err = "curl_easy_init failed"; return false; }
+
+  struct curl_slist* hdrs = nullptr;
+  hdrs = curl_slist_append(hdrs, "Content-Type: application/json");
+  hdrs = curl_slist_append(hdrs, "Accept: application/json");
+  char errbuf[CURL_ERROR_SIZE] = {0};
+
+  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);
+  curl_easy_setopt(curl, CURLOPT_POST, 1L);
+  curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload.c_str());
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, payload.size());
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
+  curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2L);
+  curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+  curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &JointTrajectoryController::curlWriteCb_);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp);
+
+  CURLcode res = curl_easy_perform(curl);
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+
+  curl_slist_free_all(hdrs);
+  curl_easy_cleanup(curl);
+
+  if (res != CURLE_OK) { err = errbuf[0] ? errbuf : curl_easy_strerror(res); return false; }
+  return (http_code >= 200 && http_code < 300);
+}
+
+bool JointTrajectoryController::httpPutNoBody_(
+  const std::string& url, long& http_code, std::string& resp, std::string& err)
+{
+  return httpPut_(url, "", http_code, resp, err);
+}
+
+bool JointTrajectoryController::httpGet_(
+  const std::string& url, long& http_code, std::string& resp, std::string& err)
+{
+  CURL* curl = curl_easy_init();
+  if (!curl) { err = "curl_easy_init failed"; return false; }
+  struct curl_slist* hdrs = nullptr;
+  hdrs = curl_slist_append(hdrs, "Accept: application/json");
+  char errbuf[CURL_ERROR_SIZE] = {0};
+  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3L);
+  curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2L);
+  curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+  curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &JointTrajectoryController::curlWriteCb_);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp);
+  CURLcode res = curl_easy_perform(curl);
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+  curl_slist_free_all(hdrs);
+  curl_easy_cleanup(curl);
+  if (res != CURLE_OK) { err = errbuf[0] ? errbuf : curl_easy_strerror(res); return false; }
+  return (http_code >= 200 && http_code < 300);
+}
+
+bool JointTrajectoryController::rozumEnqueue_(
+  const trajectory_msgs::msg::JointTrajectory& traj)
+{
+  {
+    std::lock_guard<std::mutex> lk(rozum_mu_);
+    rozum_pending_traj_ = traj;
+  }
+  rozum_cv_.notify_one();
+  return true;
+}
+
+void JointTrajectoryController::rozumStartThread_()
+{
+  rozum_stop_ = false;
+  rozum_sender_thread_ = std::thread([this]{ rozumSenderLoop_(); });
+}
+
+void JointTrajectoryController::rozumStopThread_()
+{
+  {
+    std::lock_guard<std::mutex> lk(rozum_mu_);
+    rozum_stop_ = true;
+  }
+  rozum_cv_.notify_one();
+  if (rozum_sender_thread_.joinable()) rozum_sender_thread_.join();
+}
+
+static inline double rad2deg(double r) { return r * 180.0 / M_PI; }
+
+std::string JointTrajectoryController::buildRozumPosesPayload_(
+  const trajectory_msgs::msg::JointTrajectory& traj,
+  const std::vector<std::string>& ctrl_joint_order)
+{
+  // Build mapping from traj.joint_names -> controller joint order
+  std::vector<int> map(ctrl_joint_order.size(), -1);
+  for (size_t cj = 0; cj < ctrl_joint_order.size(); ++cj) {
+    for (size_t tj = 0; tj < traj.joint_names.size(); ++tj) {
+      if (ctrl_joint_order[cj] == traj.joint_names[tj]) { map[cj] = static_cast<int>(tj); break; }
+    }
+  }
+
+  std::string json = "[";
+  bool first_wp = true;
+  for (const auto& pt : traj.points) {
+    if (!first_wp) json += ",";
+    first_wp = false;
+    json += "{\"angles\":[";
+    for (size_t cj = 0; cj < ctrl_joint_order.size(); ++cj) {
+      const int tj = map[cj];
+      const double val = (tj >= 0 && tj < (int)pt.positions.size()) ? rad2deg(pt.positions[tj]) : std::numeric_limits<double>::quiet_NaN();
+      json += std::to_string(val);
+      if (cj + 1 < ctrl_joint_order.size()) json += ",";
+    }
+    json += "]}";
+  }
+  json += "]";
+  return json;
+}
+
+void JointTrajectoryController::rozumSenderLoop_()
+{
+  const double poll_dt = (rozum_poll_hz_ > 0) ? (1.0 / rozum_poll_hz_) : 0.1;
+
+  while (true) {
+    std::unique_lock<std::mutex> lk(rozum_mu_);
+    rozum_cv_.wait(lk, [&]{ return rozum_stop_ || rozum_pending_traj_.has_value(); });
+    if (rozum_stop_) return;
+
+    // Pop
+    auto traj = std::move(*rozum_pending_traj_);
+    rozum_pending_traj_.reset();
+    lk.unlock();
+
+    // Build payload & URL (use controller's joint order)
+    const auto & ctrl_order =
+      command_joint_names_.empty() ? params_.joints : command_joint_names_;
+    const auto payload = buildRozumPosesPayload_(traj, ctrl_order);
+
+    const std::string url =
+      rozum_base_url_ + "/poses/run?speed=" + std::to_string(rozum_speed_percent_) +
+      "&motionType=" + rozum_motion_type_;
+
+    rozum_state_.store(RozumSendStatus::SENDING);
+    rozum_last_error_.clear();
+
+    // Fire /poses/run
+    long code = 0; std::string resp, err;
+    const bool ok = httpPut_(url, payload, code, resp, err);
+
+    if (!ok) {
+      rozum_last_error_ = "PUT /poses/run failed: HTTP " + std::to_string(code) + " : " + err;
+      rozum_state_.store(RozumSendStatus::FAILED);
+      continue;
+    }
+
+    // Poll /status/motion until IDLE or timeout
+    double timeout_s = 5.0; // fallback
+    if (!traj.points.empty()) {
+      timeout_s = rclcpp::Duration(traj.points.back().time_from_start).seconds()
+                  * std::max(1.0, rozum_timeout_scale_);
+    }
+    const rclcpp::Time t0 = get_node()->now();
+    const std::string st_url = rozum_base_url_ + "/status/motion";
+
+    while (true) {
+      long s_code = 0; std::string s_resp, s_err;
+      const bool s_ok = httpGet_(st_url, s_code, s_resp, s_err);
+      if (s_ok) {
+        if (s_resp.find("IDLE") != std::string::npos) {
+          rozum_state_.store(RozumSendStatus::OK);
+          break;
+        }
+        if (s_resp.find("ERROR") != std::string::npos ||
+            s_resp.find("MOTION_FAILED") != std::string::npos) {
+          rozum_last_error_ = "Motion status: " + s_resp;
+          rozum_state_.store(RozumSendStatus::FAILED);
+          break;
+        }
+      } else {
+        // keep trying until timeout; record latest error for logging/result
+        rozum_last_error_ = "GET /status/motion failed: HTTP " + std::to_string(s_code) +
+                            " : " + s_err;
+      }
+
+      if ((get_node()->now() - t0).seconds() > timeout_s) {
+        rozum_last_error_ = "Timeout waiting for motion to finish";
+        rozum_state_.store(RozumSendStatus::FAILED);
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::duration<double>(poll_dt));
+    }
+  }
+}
+
+
+// HELPERS FUNCTIONS END
 
 controller_interface::CallbackReturn JointTrajectoryController::on_init()
 {
@@ -132,301 +349,59 @@ JointTrajectoryController::state_interface_configuration() const
   return conf;
 }
 
-controller_interface::return_type JointTrajectoryController::update(
-  const rclcpp::Time & time, const rclcpp::Duration & period)
+controller_interface::return_type
+JointTrajectoryController::update(const rclcpp::Time& time,
+                                  const rclcpp::Duration& period)
 {
-  auto logger = this->get_node()->get_logger();
-  // update dynamic parameters
-  if (param_listener_->is_old(params_))
-  {
-    params_ = param_listener_->get_params();
-    default_tolerances_ = get_segment_tolerances(logger, params_);
-    // update the PID gains
-    // variable use_closed_loop_pid_adapter_ is updated in on_configure only
-    if (use_closed_loop_pid_adapter_)
-    {
-      update_pids();
-    }
+  // 1) While Rozum runs the full path, we send NaNs to command interfaces
+  //    so your hardware_interface::write() early-returns and does *no* HTTP.
+  //    (You already do this check in your write().)
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  for (size_t i = 0; i < command_interfaces_.size(); ++i) {
+    command_interfaces_[i].set_value(nan);
   }
 
-  // don't update goal after we sampled the trajectory to avoid any racecondition
-  const auto active_goal = *rt_active_goal_.readFromRT();
-
-  // Check if a new trajectory message has been received from Non-RT threads
-  const auto current_trajectory_msg = current_trajectory_->get_trajectory_msg();
-  auto new_external_msg = new_trajectory_msg_.readFromRT();
-  // Discard, if a goal is pending but still not active (somewhere stuck in goal_handle_timer_)
-  if (
-    current_trajectory_msg != *new_external_msg && (rt_has_pending_goal_ && !active_goal) == false)
-  {
-    fill_partial_goal(*new_external_msg);
-    sort_to_local_joint_order(*new_external_msg);
-    // TODO(denis): Add here integration of position and velocity
-    current_trajectory_->update(*new_external_msg);
+  // 2) Action feedback & result management (based on sender thread state)
+  // Publish very simple time-based feedback so clients don’t think we’re dead.
+  if (rozum_goal_active_.load()) {
+    const auto elapsed = time - rozum_goal_start_time_;
+    const auto total   = rozum_goal_expected_duration_;
+    // (Optional) publish FollowJointTrajectory feedback here if you like,
+    // using elapsed/total.
   }
 
-  // current state update
-  state_current_.time_from_start.sec = 0;
-  state_current_.time_from_start.nanosec = 0;
-  read_state_from_state_interfaces(state_current_);
+  const auto state = rozum_state_.load();
+  switch (state) {
+    case RozumSendStatus::IDLE:
+      // nothing to do
+      break;
 
-  // currently carrying out a trajectory
-  if (has_active_trajectory())
-  {
-    bool first_sample = false;
-    TrajectoryPointConstIter start_segment_itr, end_segment_itr;
-    // if sampling the first time, set the point before you sample
-    if (!current_trajectory_->is_sampled_already())
-    {
-      first_sample = true;
-      if (params_.interpolate_from_desired_state || params_.open_loop_control)
-      {
-        if (std::abs(last_commanded_time_.seconds()) < std::numeric_limits<float>::epsilon())
-        {
-          last_commanded_time_ = time;
-        }
-        current_trajectory_->set_point_before_trajectory_msg(
-          last_commanded_time_, last_commanded_state_, joints_angle_wraparound_);
+    case RozumSendStatus::SENDING:
+      // keep waiting; do not stream commands
+      break;
+
+    case RozumSendStatus::OK:
+      // Mark action success once sender says motion finished
+      if (rozum_goal_active_.exchange(false)) {
+        // succeed active goal (call the internal helper that JTC uses)
+        // e.g., succeed_active_goal_();  // pseudo: call your controller’s actual method
       }
-      else
-      {
-        current_trajectory_->set_point_before_trajectory_msg(
-          time, state_current_, joints_angle_wraparound_);
+      // Reset state to IDLE to allow the next goal
+      rozum_state_.store(RozumSendStatus::IDLE);
+      break;
+
+    case RozumSendStatus::FAILED:
+    case RozumSendStatus::ABORTED:
+      if (rozum_goal_active_.exchange(false)) {
+        // abort_active_goal_(rozum_last_error_); // pseudo: call your controller’s method
       }
-      traj_time_ = time;
-    }
-    else
-    {
-      traj_time_ += period;
-    }
-
-    // Sample expected state from the trajectory
-    current_trajectory_->sample(
-      traj_time_, interpolation_method_, state_desired_, start_segment_itr, end_segment_itr);
-
-    // Sample setpoint for next control cycle
-    const bool valid_point = current_trajectory_->sample(
-      traj_time_ + update_period_, interpolation_method_, command_next_, start_segment_itr,
-      end_segment_itr, false);
-
-    if (valid_point)
-    {
-      const rclcpp::Time traj_start = current_trajectory_->time_from_start();
-      // this is the time instance
-      // - started with the first segment: when the first point will be reached (in the future)
-      // - later: when the point of the current segment was reached
-      const rclcpp::Time segment_time_from_start = traj_start + start_segment_itr->time_from_start;
-      // time_difference is
-      // - negative until first point is reached
-      // - counting from zero to time_from_start of next point
-      double time_difference = traj_time_.seconds() - segment_time_from_start.seconds();
-      bool tolerance_violated_while_moving = false;
-      bool outside_goal_tolerance = false;
-      bool within_goal_time = true;
-      const bool before_last_point = end_segment_itr != current_trajectory_->end();
-      auto active_tol = active_tolerances_.readFromRT();
-
-      // have we reached the end, are not holding position, and is a timeout configured?
-      // Check independently of other tolerances
-      if (
-        !before_last_point && !rt_is_holding_ && cmd_timeout_ > 0.0 &&
-        time_difference > cmd_timeout_)
-      {
-        RCLCPP_WARN(logger, "Aborted due to command timeout");
-
-        new_trajectory_msg_.reset();
-        new_trajectory_msg_.initRT(set_hold_position());
-      }
-
-      // Check state/goal tolerance
-      for (size_t index = 0; index < dof_; ++index)
-      {
-        compute_error_for_joint(state_error_, index, state_current_, state_desired_);
-
-        // Always check the state tolerance on the first sample in case the first sample
-        // is the last point
-        // print output per default, goal will be aborted afterwards
-        if (
-          (before_last_point || first_sample) && !rt_is_holding_ &&
-          !check_state_tolerance_per_joint(
-            state_error_, index, active_tol->state_tolerance[index], true /* show_errors */))
-        {
-          tolerance_violated_while_moving = true;
-        }
-        // past the final point, check that we end up inside goal tolerance
-        if (
-          !before_last_point && !rt_is_holding_ &&
-          !check_state_tolerance_per_joint(
-            state_error_, index, active_tol->goal_state_tolerance[index], false /* show_errors */))
-        {
-          outside_goal_tolerance = true;
-
-          if (active_tol->goal_time_tolerance != 0.0)
-          {
-            // if we exceed goal_time_tolerance set it to aborted
-            if (time_difference > active_tol->goal_time_tolerance)
-            {
-              within_goal_time = false;
-              // print once, goal will be aborted afterwards
-              check_state_tolerance_per_joint(
-                state_error_, index, default_tolerances_.goal_state_tolerance[index],
-                true /* show_errors */);
-            }
-          }
-        }
-      }
-
-      // set values for next hardware write() if tolerance is met
-      if (!tolerance_violated_while_moving && within_goal_time)
-      {
-        if (use_closed_loop_pid_adapter_)
-        {
-          // Update PIDs
-          for (auto i = 0ul; i < num_cmd_joints_; ++i)
-          {
-            // If effort interface only, add desired effort as feed forward
-            // If velocity interface, ignore desired effort
-            size_t index_cmd_joint = map_cmd_to_joints_[i];
-            tmp_command_[index_cmd_joint] =
-              (command_next_.velocities[index_cmd_joint] * ff_velocity_scale_[i]) +
-              (has_effort_command_interface_ ? command_next_.effort[index_cmd_joint] : 0.0) +
-              pids_[i]->compute_command(
-                state_error_.positions[index_cmd_joint], state_error_.velocities[index_cmd_joint],
-                period);
-          }
-        }
-
-        // set values for next hardware write()
-        if (has_position_command_interface_)
-        {
-          assign_interface_from_point(joint_command_interface_[0], command_next_.positions);
-        }
-        if (has_velocity_command_interface_)
-        {
-          if (use_closed_loop_pid_adapter_)
-          {
-            assign_interface_from_point(joint_command_interface_[1], tmp_command_);
-          }
-          else
-          {
-            assign_interface_from_point(joint_command_interface_[1], command_next_.velocities);
-          }
-        }
-        if (has_acceleration_command_interface_)
-        {
-          assign_interface_from_point(joint_command_interface_[2], command_next_.accelerations);
-        }
-        if (has_effort_command_interface_)
-        {
-          if (use_closed_loop_pid_adapter_)
-          {
-            assign_interface_from_point(joint_command_interface_[3], tmp_command_);
-          }
-          else
-          {
-            // If position and effort command interfaces, only pass desired effort
-            assign_interface_from_point(joint_command_interface_[3], state_desired_.effort);
-          }
-        }
-
-        // store the previous command and time used in open-loop control mode
-        last_commanded_state_ = command_next_;
-        last_commanded_time_ = time;
-      }
-
-      if (active_goal)
-      {
-        // send feedback
-        auto feedback = std::make_shared<FollowJTrajAction::Feedback>();
-        feedback->header.stamp = time;
-        feedback->joint_names = params_.joints;
-
-        feedback->actual = state_current_;
-        feedback->desired = state_desired_;
-        feedback->error = state_error_;
-        active_goal->setFeedback(feedback);
-
-        // check abort
-        if (tolerance_violated_while_moving)
-        {
-          auto result = std::make_shared<FollowJTrajAction::Result>();
-          result->set__error_code(FollowJTrajAction::Result::PATH_TOLERANCE_VIOLATED);
-          result->set__error_string("Aborted due to path tolerance violation");
-          active_goal->setAborted(result);
-          // TODO(matthew-reynolds): Need a lock-free write here
-          // See https://github.com/ros-controls/ros2_controllers/issues/168
-          rt_active_goal_.writeFromNonRT(RealtimeGoalHandlePtr());
-          rt_has_pending_goal_ = false;
-
-          RCLCPP_WARN(logger, "Aborted due to state tolerance violation");
-
-          new_trajectory_msg_.reset();
-          new_trajectory_msg_.initRT(set_hold_position());
-        }
-        // check goal tolerance
-        else if (!before_last_point)
-        {
-          if (!outside_goal_tolerance)
-          {
-            auto result = std::make_shared<FollowJTrajAction::Result>();
-            result->set__error_code(FollowJTrajAction::Result::SUCCESSFUL);
-            result->set__error_string("Goal successfully reached!");
-            active_goal->setSucceeded(result);
-            // TODO(matthew-reynolds): Need a lock-free write here
-            // See https://github.com/ros-controls/ros2_controllers/issues/168
-            rt_active_goal_.writeFromNonRT(RealtimeGoalHandlePtr());
-            rt_has_pending_goal_ = false;
-
-            RCLCPP_INFO(logger, "Goal reached, success!");
-
-            new_trajectory_msg_.reset();
-            new_trajectory_msg_.initRT(set_success_trajectory_point());
-          }
-          else if (!within_goal_time)
-          {
-            const std::string error_string = "Aborted due to goal_time_tolerance exceeding by " +
-                                             std::to_string(time_difference) + " seconds";
-
-            auto result = std::make_shared<FollowJTrajAction::Result>();
-            result->set__error_code(FollowJTrajAction::Result::GOAL_TOLERANCE_VIOLATED);
-            result->set__error_string(error_string);
-            active_goal->setAborted(result);
-            // TODO(matthew-reynolds): Need a lock-free write here
-            // See https://github.com/ros-controls/ros2_controllers/issues/168
-            rt_active_goal_.writeFromNonRT(RealtimeGoalHandlePtr());
-            rt_has_pending_goal_ = false;
-
-            RCLCPP_WARN(logger, "%s", error_string.c_str());
-
-            new_trajectory_msg_.reset();
-            new_trajectory_msg_.initRT(set_hold_position());
-          }
-        }
-      }
-      else if (tolerance_violated_while_moving && !rt_has_pending_goal_)
-      {
-        // we need to ensure that there is no pending goal -> we get a race condition otherwise
-        RCLCPP_ERROR(logger, "Holding position due to state tolerance violation");
-
-        new_trajectory_msg_.reset();
-        new_trajectory_msg_.initRT(set_hold_position());
-      }
-      else if (!before_last_point && !within_goal_time && !rt_has_pending_goal_)
-      {
-        RCLCPP_ERROR(logger, "Exceeded goal_time_tolerance: holding position...");
-
-        new_trajectory_msg_.reset();
-        new_trajectory_msg_.initRT(set_hold_position());
-      }
-      // else, run another cycle while waiting for outside_goal_tolerance
-      // to be satisfied (will stay in this state until new message arrives)
-      // or outside_goal_tolerance violated within the goal_time_tolerance
-    }
+      rozum_state_.store(RozumSendStatus::IDLE);
+      break;
   }
 
-  publish_state(time, state_desired_, state_current_, state_error_);
   return controller_interface::return_type::OK;
 }
+
 
 void JointTrajectoryController::read_state_from_state_interfaces(JointTrajectoryPoint & state)
 {
@@ -872,6 +847,38 @@ controller_interface::CallbackReturn JointTrajectoryController::on_configure(
     logger, "Using '%s' interpolation method.",
     interpolation_methods::InterpolationMethodMap.at(interpolation_method_).c_str());
 
+  // --- Custom Rozum path-sender parameters (declare + read) ---
+  auto node = get_node();
+  node->declare_parameter<std::string>("rozum.api_base_url",  rozum_base_url_);
+  node->declare_parameter<int>       ("rozum.speed_percent",   rozum_speed_percent_);
+  node->declare_parameter<std::string>("rozum.motion_type",    rozum_motion_type_);
+  node->declare_parameter<double>    ("rozum.poll_hz",         rozum_poll_hz_);
+  node->declare_parameter<double>    ("rozum.timeout_scale",   rozum_timeout_scale_);
+
+  // pull the values (allows YAML overrides)
+  node->get_parameter("rozum.api_base_url",  rozum_base_url_);
+  node->get_parameter("rozum.speed_percent", rozum_speed_percent_);
+  node->get_parameter("rozum.motion_type",   rozum_motion_type_);
+  node->get_parameter("rozum.poll_hz",       rozum_poll_hz_);
+  node->get_parameter("rozum.timeout_scale", rozum_timeout_scale_);
+
+  RCLCPP_INFO(
+  logger,
+  "Rozum path-sender: base_url=%s speed=%d motionType=%s poll=%.1f Hz timeout_scale=%.2f",
+  rozum_base_url_.c_str(), rozum_speed_percent_, rozum_motion_type_.c_str(),
+  rozum_poll_hz_, rozum_timeout_scale_);
+
+
+
+
+
+
+
+
+
+
+
+
   // prepare hold_position_msg
   init_hold_position_msg();
 
@@ -1064,6 +1071,8 @@ controller_interface::CallbackReturn JointTrajectoryController::on_activate(
     cmd_timeout_ = 0.0;
   }
 
+  rozumStartThread_();
+
   return CallbackReturn::SUCCESS;
 }
 
@@ -1116,6 +1125,8 @@ controller_interface::CallbackReturn JointTrajectoryController::on_deactivate(
   subscriber_is_active_ = false;
 
   current_trajectory_.reset();
+
+  rozumStopThread_();
 
   return CallbackReturn::SUCCESS;
 }
@@ -1191,6 +1202,7 @@ void JointTrajectoryController::topic_callback(
   if (subscriber_is_active_)
   {
     add_new_trajectory_msg(msg);
+    rozumEnqueue_(*(msg.get()));
     rt_is_holding_ = false;
   }
 };
@@ -1244,38 +1256,44 @@ rclcpp_action::CancelResponse JointTrajectoryController::goal_cancelled_callback
 void JointTrajectoryController::goal_accepted_callback(
   std::shared_ptr<rclcpp_action::ServerGoalHandle<FollowJTrajAction>> goal_handle)
 {
-  // mark a pending goal
+  // mark a pending goal (still useful for action server state)
   rt_has_pending_goal_ = true;
 
-  // Update new trajectory
-  {
-    preempt_active_goal();
-    auto traj_msg =
-      std::make_shared<trajectory_msgs::msg::JointTrajectory>(goal_handle->get_goal()->trajectory);
+  // Clear out any active goal first
+  preempt_active_goal();
 
-    add_new_trajectory_msg(traj_msg);
-    rt_is_holding_ = false;
+  // === Rozum path-sender: enqueue the entire trajectory ===
+  const auto & traj = goal_handle->get_goal()->trajectory;
+  rozumEnqueue_(traj);
+
+  // Record timing for feedback/result management
+  rozum_goal_start_time_ = get_node()->now();
+  if (!traj.points.empty()) {
+    rozum_goal_expected_duration_ = traj.points.back().time_from_start;
+  } else {
+    rozum_goal_expected_duration_ = rclcpp::Duration(0,0);
   }
+  rozum_goal_active_.store(true);
 
-  // Update the active goal
+  // Update the active goal handle so action server is aware
   RealtimeGoalHandlePtr rt_goal = std::make_shared<RealtimeGoalHandle>(goal_handle);
   rt_goal->preallocated_feedback_->joint_names = params_.joints;
   rt_goal->execute();
   rt_active_goal_.writeFromNonRT(rt_goal);
 
-  // Update tolerances if specified in the goal
+  // Update tolerances if specified in the goal (you can keep this,
+  // though the Rozum arm enforces path anyway)
   auto logger = this->get_node()->get_logger();
   active_tolerances_.writeFromNonRT(get_segment_tolerances(
     logger, default_tolerances_, *(goal_handle->get_goal()), params_.joints));
 
-  // Set smartpointer to expire for create_wall_timer to delete previous entry from timer list
-  goal_handle_timer_.reset();
+  // We don’t need to enqueue the trajectory to the default sampler anymore:
+  // ❌ add_new_trajectory_msg(traj_msg);
+  // ❌ goal_handle_timer_ …
 
-  // Setup goal status checking timer
-  goal_handle_timer_ = get_node()->create_wall_timer(
-    action_monitor_period_.to_chrono<std::chrono::nanoseconds>(),
-    std::bind(&RealtimeGoalHandle::runNonRealtime, rt_goal));
+  // Instead, the sender thread + update() will monitor completion via /status/motion
 }
+
 
 void JointTrajectoryController::compute_error_for_joint(
   JointTrajectoryPoint & error, const size_t index, const JointTrajectoryPoint & current,

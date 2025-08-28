@@ -25,8 +25,10 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
 find_package(ament_cmake REQUIRED)
 find_package(backward_ros REQUIRED)
 foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
-  find_package(${Dependency} REQUIRED)
+find_package(${Dependency} REQUIRED)
 endforeach()
+
+find_package(CURL REQUIRED)
 
 generate_parameter_library(joint_trajectory_controller_parameters
   src/joint_trajectory_controller_parameters.yaml
@@ -42,7 +44,8 @@ target_include_directories(joint_trajectory_controller PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/joint_trajectory_controller>
 )
-find_package(CURL REQUIRED)
+
+target_link_libraries(joint_trajectory_controller PRIVATE CURL::libcurl)
 
 target_link_libraries(joint_trajectory_controller
   PRIVATE CURL::libcurl

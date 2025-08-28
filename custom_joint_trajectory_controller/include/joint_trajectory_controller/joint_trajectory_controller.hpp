@@ -15,6 +15,7 @@
 #ifndef JOINT_TRAJECTORY_CONTROLLER__JOINT_TRAJECTORY_CONTROLLER_HPP_
 #define JOINT_TRAJECTORY_CONTROLLER__JOINT_TRAJECTORY_CONTROLLER_HPP_
 
+#include <curl/curl.h>
 #include <atomic>
 #include <functional>  // for std::reference_wrapper
 #include <memory>
@@ -263,6 +264,59 @@ protected:
     std::shared_ptr<control_msgs::srv::QueryTrajectoryState::Response> response);
 
 private:
+
+
+struct RozumSendStatus {
+  enum Code { IDLE, SENDING, OK, FAILED, ABORTED } code = IDLE;
+  std::string err;
+};
+
+std::thread rozum_sender_thread_;
+std::mutex rozum_mu_;
+std::condition_variable rozum_cv_;
+bool rozum_stop_{false};
+
+std::optional<trajectory_msgs::msg::JointTrajectory> rozum_pending_traj_;
+std::atomic<RozumSendStatus::Code> rozum_state_{RozumSendStatus::IDLE};
+std::string rozum_last_error_;
+
+std::string rozum_base_url_ = "http://10.10.10.20:8081";
+int rozum_speed_percent_ = 10;            // YAML param, default 10
+std::string rozum_motion_type_ = "joint"; // YAML param: "joint" or "linear"
+double rozum_poll_hz_ = 10.0;             // YAML param: 10 Hz status polling
+double rozum_timeout_scale_ = 2.0;        // YAML param: time budget multiplier
+
+// For goal bookkeeping and feedback
+rclcpp::Time rozum_goal_start_time_;
+rclcpp::Duration rozum_goal_expected_duration_{0,0};
+std::atomic<bool> rozum_goal_active_{false};
+
+// helpers
+void rozumStartThread_();
+void rozumStopThread_();
+void rozumSenderLoop_();
+bool rozumEnqueue_(const trajectory_msgs::msg::JointTrajectory& traj);
+static std::string buildRozumPosesPayload_(
+    const trajectory_msgs::msg::JointTrajectory& traj,
+    const std::vector<std::string>& ctrl_joint_order);
+static size_t curlWriteCb_(char* ptr, size_t size, size_t nmemb, void* userdata);
+static bool httpPut_(const std::string& url, const std::string& payload,
+                     long& http_code, std::string& resp, std::string& err);
+static bool httpPutNoBody_(const std::string& url, long& http_code,
+                           std::string& resp, std::string& err);
+static bool httpGet_(const std::string& url, long& http_code,
+                     std::string& resp, std::string& err);
+
+
+
+
+
+
+
+
+
+
+
   void update_pids();
 
   bool contains_interface_type(

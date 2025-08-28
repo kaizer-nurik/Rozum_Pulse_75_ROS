@@ -36,6 +36,10 @@
   <depend>urdf</depend>
   <depend>rapidjson</depend>
   <depend>curl</depend>
+
+  <build_depend>libcurl4-openssl-dev</build_depend>
+  <exec_depend>libcurl4-openssl-dev</exec_depend>
+
   
 
   <test_depend>ament_cmake_gmock</test_depend>
