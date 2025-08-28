@@ -4,7 +4,7 @@ controller_manager:
     rozum_75_joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
     rozum_joint_controller:
-      type: joint_trajectory_controller/JointTrajectoryController
+      type: custom_joint_trajectory_controller/JointTrajectoryController
 
 
 rozum_75_joint_state_broadcaster:

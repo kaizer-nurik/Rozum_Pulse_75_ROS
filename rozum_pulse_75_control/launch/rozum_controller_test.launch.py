@@ -89,13 +89,13 @@ def generate_launch_description():
         ]
     )
 
-    gripper_controllers = PathJoinSubstitution(
-        [
-            FindPackageShare("dh_gripper_driver"),
-            "config",
-            "dh_ag95_controllers.yaml",
-        ]
-    )
+    # gripper_controllers = PathJoinSubstitution(
+    #     [
+    #         FindPackageShare("dh_gripper_driver"),
+    #         "config",
+    #         "dh_ag95_controllers.yaml",
+    #     ]
+    # )
 
     # Load RViz configuration
     rviz_config_file = PathJoinSubstitution(
@@ -107,8 +107,8 @@ def generate_launch_description():
         package="controller_manager",
         executable="ros2_control_node",
         parameters=[{'robot_description': robot_description},  
-            robot_controllers,
-            gripper_controllers],
+            robot_controllers],
+            # gripper_controllers],
         output="both",
         remappings=[
             ('controller_manager/robot_description', 'robot_description'),
@@ -143,8 +143,8 @@ def generate_launch_description():
 
     # Active controllers
     active_list = [
-        "gripper_joint_state_broadcaster",
-        "forward_position_controller",
+        # "gripper_joint_state_broadcaster",
+        # "forward_position_controller",
         "rozum_75_joint_state_broadcaster",
         "rozum_joint_controller"
     ]
