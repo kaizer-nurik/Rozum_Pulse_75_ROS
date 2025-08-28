@@ -1,0 +1,25 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: rozum_pulse_75_control
+    relative_path: urdf/rozum_pulse_75_with_gripper.xacro
+  srdf:
+    relative_path: config/rozum75_with_gripper.srdf
+  package_settings:
+    author_name: milana
+    author_email: qrvmil@yandex.ru
+    generated_timestamp: 1756372276
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
+  modified_urdf:
+    xacros:
+      - control_xacro
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity

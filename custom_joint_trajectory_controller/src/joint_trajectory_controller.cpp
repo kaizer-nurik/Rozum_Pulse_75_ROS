@@ -194,6 +194,7 @@ void JointTrajectoryController::rozumSenderLoop_()
   while (true) {
     std::unique_lock<std::mutex> lk(rozum_mu_);
     rozum_cv_.wait(lk, [&]{ return rozum_stop_ || rozum_pending_traj_.has_value(); });
+    
     if (rozum_stop_) return;
 
     // Pop

@@ -45,7 +45,7 @@ hardware_interface::CallbackReturn RozumSystemHardware::on_init(const hardware_i
   base_url_ = info_.hardware_parameters.at("base_url");
   joint_positions_.assign(info_.joints.size(), 0.0);
 
-  RCLCPP_INFO(rclcpp::get_logger("RozumSystemHardware"),
+  RCLCPP_DEBUG(rclcpp::get_logger("RozumSystemHardware"),
               "Initialized with base_url='%s', joints=%zu",
               base_url_.c_str(), info_.joints.size());
 
@@ -100,7 +100,7 @@ hardware_interface::return_type RozumSystemHardware::read(const rclcpp::Time &, 
 
   
   const std::string preview = readBuffer.substr(0, 400);
-  RCLCPP_INFO(rclcpp::get_logger("RozumSystemHardware"),
+  RCLCPP_DEBUG(rclcpp::get_logger("RozumSystemHardware"),
               "HTTP %ld, payload %zu bytes, head: '%s%s'",
               http_code, readBuffer.size(), preview.c_str(),
               (readBuffer.size() > preview.size() ? "…":""));
