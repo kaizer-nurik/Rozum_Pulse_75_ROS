@@ -5,10 +5,10 @@
     <!-- Import rozum75_with_gripper urdf file -->
     <xacro:include filename="$(find rozum_pulse_75_control)/urdf/rozum_pulse_75_with_gripper.xacro" />
 
-    <!-- Import control_xacro -->
+    <!-- Import control_xacro
     <xacro:include filename="rozum75_with_gripper.ros2_control.xacro" />
 
 
-    <xacro:rozum75_with_gripper_ros2_control name="FakeSystem" initial_positions_file="$(arg initial_positions_file)"/>
+    <xacro:rozum75_with_gripper_ros2_control name="FakeSystem" initial_positions_file="$(arg initial_positions_file)"/> -->
 
 </robot>

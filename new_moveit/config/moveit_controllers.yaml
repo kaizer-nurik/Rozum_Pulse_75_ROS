@@ -1,24 +1,32 @@
 # MoveIt uses this configuration for controller management
 
-moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControllerManager
+moveit_controller_manager: moveit_ros_control_interface/Ros2ControlManager
 
-moveit_simple_controller_manager:
-  controller_names:
-    - arm_controller
-    - gripper_controller
+# Optional tweaks for the ros2_control interface:
+ros_control_namespace: "/"                # if your ros2_control node is namespaced
+controller_service_call_timeout: 5.0      # seconds (default 3.0)
 
-  arm_controller:
-    type: FollowJointTrajectory
-    joints:
-      - joint1
-      - joint2
-      - joint3
-      - joint4
-      - joint5
-      - joint6
-  gripper_controller:
-    type: GripperCommand
-    joints:
-      - left_outer_knuckle_joint
-    action_ns: gripper_cmd
-    default: true
+
+# moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControllerManager
+
+# moveit_simple_controller_manager:
+#   controller_names:
+#     - rozum_joint_controller
+#     - dh_ag95_gripper_controller
+
+# rozum_joint_controller:
+#   type: FollowJointTrajectory
+#   joints:
+#     - joint1
+#     - joint2
+#     - joint3
+#     - joint4
+#     - joint5
+#     - joint6
+    
+# dh_ag95_gripper_controller:
+#   type: GripperCommand
+#   joints:
+#     - left_outer_knuckle_joint
+#   action_ns: gripper_cmd
+#   default: true

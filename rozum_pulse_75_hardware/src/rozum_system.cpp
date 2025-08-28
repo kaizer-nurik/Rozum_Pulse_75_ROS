@@ -115,7 +115,7 @@ hardware_interface::return_type RozumSystemHardware::read(const rclcpp::Time &, 
 
   
   const std::string preview = readBuffer.substr(0, 400);
-  RCLCPP_INFO(rclcpp::get_logger("RozumSystemHardware"),
+  RCLCPP_DEBUG(rclcpp::get_logger("RozumSystemHardware"),
               "HTTP %ld, payload %zu bytes, head: '%s%s'",
               http_code, readBuffer.size(), preview.c_str(),
               (readBuffer.size() > preview.size() ? "…":""));
@@ -193,14 +193,14 @@ hardware_interface::return_type RozumSystemHardware::write(const rclcpp::Time &,
     json_payload += "]}]";
     // hardcode to skip zeros at startup
     if(all_zeros && ignore_write_for_zeros){
-      RCLCPP_INFO(rclcpp::get_logger("RozumSystemHardware"), "all zeros, skipping write");
+      RCLCPP_DEBUG(rclcpp::get_logger("RozumSystemHardware"), "all zeros, skipping write");
       return hardware_interface::return_type::OK;
     }
     if(!all_zeros && ignore_write_for_zeros){
       ignore_write_for_zeros = false;
     }
   }
-  RCLCPP_INFO(rclcpp::get_logger("RozumSystemHardware"), "write json_payload: %s", json_payload.c_str());
+  RCLCPP_DEBUG(rclcpp::get_logger("RozumSystemHardware"), "write json_payload: %s", json_payload.c_str());
   CURL* curl = curl_easy_init();
   if (!curl) {
     RCLCPP_ERROR(rclcpp::get_logger("RozumSystemHardware"), "curl_easy_init() failed (write)");

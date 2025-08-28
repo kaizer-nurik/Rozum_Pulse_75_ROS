@@ -152,9 +152,15 @@
       link="link2_dummy" />
     <axis
       xyz="0 0 1" />
-    <limit
+        <!-- <limit
       lower="-0.6108652382"
       upper="3.76991118431"
+      effort="10"
+      velocity="10" /> -->
+      <!-- commented out limits from DH file because they are too tight -->
+    <limit
+      lower="-3.14159265359"
+      upper="3.14159265359"
       effort="10"
       velocity="10" />
   </joint>
@@ -214,9 +220,14 @@
       link="link2" />
     <axis
       xyz="0 0 1" />
-    <limit
+    <!-- <limit
       lower="-0.6108652382"
       upper="3.76991118431"
+      effort="10"
+      velocity="10" /> -->
+    <limit
+      lower="-3.14159265359"
+      upper="3.14159265359"
       effort="10"
       velocity="10" />
   </joint>
