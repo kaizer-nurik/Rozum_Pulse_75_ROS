@@ -1,0 +1,22 @@
+sensors:
+  # - realsense_d435_1_point_cloud
+  - realsense_d435_1_depth_image
+# realsense_d435_1_point_cloud:
+#     sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater
+#     point_cloud_topic: /camera_1/points
+#     max_range: 5.0
+#     point_subsample: 1
+#     padding_offset: 0.1
+#     padding_scale: 1.0
+#     max_update_rate: 1.0
+#     filtered_cloud_topic: /camera_1/filtered_points
+realsense_d435_1_depth_image:
+    sensor_plugin: occupancy_map_monitor/DepthImageOctomapUpdater
+    image_topic: /camera/camera/color/image_raw
+    queue_size: 5
+    near_clipping_plane_distance: 0.3
+    far_clipping_plane_distance: 5.0
+    shadow_threshold: 0.2
+    padding_scale: 1.0
+    max_update_rate: 1.0
+    filtered_cloud_topic: /camera/camera/aligned_depth_to_color/image_raw
