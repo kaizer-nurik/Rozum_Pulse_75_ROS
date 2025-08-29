@@ -21,6 +21,9 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <mutex>
+#include <thread>
+#include <chrono>
 
 #include "control_msgs/action/follow_joint_trajectory.hpp"
 #include "control_msgs/msg/joint_trajectory_controller_state.hpp"
@@ -290,6 +293,14 @@ double rozum_timeout_scale_ = 2.0;        // YAML param: time budget multiplier
 rclcpp::Time rozum_goal_start_time_;
 rclcpp::Duration rozum_goal_expected_duration_{0,0};
 std::atomic<bool> rozum_goal_active_{false};
+std::atomic<bool> rozum_motion_busy_{false};
+std::atomic<bool> rozum_abort_wait_{false};
+
+
+bool isMotionTerminatedStatus_(const std::string& s) const;
+
+std::mutex rozum_cmd_mtx_;
+
 
 // helpers
 void rozumStartThread_();
@@ -308,14 +319,15 @@ static bool httpGet_(const std::string& url, long& http_code,
                      std::string& resp, std::string& err);
 
 
-
-
-
-
-
-
-
-
+// === Rozum stop (Relax → Freeze) ===
+// Fire-and-forget stop that runs off the RT path (detached thread)
+void rozumStopAndHoldAsync_();
+bool rozumStopAndHold_();
+// Raw calls to the REST API. Use existing httpPutNoBody_ helper.
+bool rozumRelax_();
+bool rozumFreeze_();
+// Prevents spawning multiple stop threads at once
+std::atomic<bool> rozum_stop_inflight_{false};
 
   void update_pids();
 
