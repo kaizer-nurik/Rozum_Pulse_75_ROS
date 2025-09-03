@@ -472,8 +472,21 @@ JointTrajectoryController::update(const rclcpp::Time& time,
 
     case RozumSendStatus::OK:
       if (rozum_goal_active_.exchange(false)) {
-        // succeed active goal (call the internal helper that JTC uses)
-        // e.g., succeed_active_goal_();  //
+        const auto active_goal = *rt_active_goal_.readFromNonRT();
+        if (active_goal) {
+          auto result = std::make_shared<FollowJTrajAction::Result>();
+          result->set__error_code(FollowJTrajAction::Result::SUCCESSFUL);
+          result->set__error_string("Goal successfully reached!");
+          active_goal->setSucceeded(result);
+
+          
+          rt_active_goal_.writeFromNonRT(RealtimeGoalHandlePtr());
+          rt_has_pending_goal_ = false;
+
+          RCLCPP_INFO(get_node()->get_logger(), "Action goal SUCCEEDED");
+          new_trajectory_msg_.reset();
+          new_trajectory_msg_.initRT(set_success_trajectory_point());
+        }
       }
       // Reset state to IDLE to allow the next goal
       rozum_state_.store(RozumSendStatus::IDLE);
@@ -482,7 +495,23 @@ JointTrajectoryController::update(const rclcpp::Time& time,
     case RozumSendStatus::FAILED:
     case RozumSendStatus::ABORTED:
       if (rozum_goal_active_.exchange(false)) {
-        // abort_active_goal_(rozum_last_error_); // 
+        const auto active_goal = *rt_active_goal_.readFromNonRT();
+      if (active_goal) {
+        auto result = std::make_shared<FollowJTrajAction::Result>();
+        result->set__error_code(FollowJTrajAction::Result::PATH_TOLERANCE_VIOLATED);
+        result->set__error_string(
+          rozum_last_error_.empty() ? "Aborted by device" : rozum_last_error_);
+        active_goal->setAborted(result);
+
+        rt_active_goal_.writeFromNonRT(RealtimeGoalHandlePtr());
+        rt_has_pending_goal_ = false;
+
+        RCLCPP_WARN(get_node()->get_logger(),
+                    "Action goal ABORTED: %s",
+                    result->error_string.c_str());
+
+        new_trajectory_msg_.reset();
+        new_trajectory_msg_.initRT(set_hold_position());
       }
       rozum_state_.store(RozumSendStatus::IDLE);
       break;
