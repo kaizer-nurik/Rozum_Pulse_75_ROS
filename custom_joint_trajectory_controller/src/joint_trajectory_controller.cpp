@@ -955,17 +955,6 @@ controller_interface::CallbackReturn JointTrajectoryController::on_configure(
   rozum_base_url_.c_str(), rozum_speed_percent_, rozum_motion_type_.c_str(),
   rozum_poll_hz_, rozum_timeout_scale_);
 
-
-
-
-
-
-
-
-
-
-
-
   // prepare hold_position_msg
   init_hold_position_msg();
 

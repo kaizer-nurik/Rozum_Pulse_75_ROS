@@ -16,6 +16,10 @@ from geometry_msgs.msg import PoseArray
 from aruco_interfaces.msg import ArucoMarkers
 from std_srvs.srv import Trigger
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
+from tf2_ros import Buffer, TransformListener, TransformBroadcaster
+import rclpy
+
+from geometry_msgs.msg import Pose, PoseStamped
 
 
 def quaternion_from_euler(roll: float, pitch: float, yaw: float):
@@ -73,6 +77,42 @@ def quaternion_from_rotation_matrix(R: np.ndarray):
         z = 0.25 * s
     return (x, y, z, w)
 
+# Helper quaternion math (x, y, z, w)
+def q_mult(q1, q2):
+    x1, y1, z1, w1 = q1
+    x2, y2, z2, w2 = q2
+    return (
+        w1*x2 + x1*w2 + y1*z2 - z1*y2,
+        w1*y2 - x1*z2 + y1*w2 + z1*x2,
+        w1*z2 + x1*y2 - y1*x2 + z1*w2,
+        w1*w2 - x1*x2 - y1*y2 - z1*z2,
+    )
+
+def q_conj(q):
+    x, y, z, w = q
+    return (-x, -y, -z, w)
+
+def q_normalize(q):
+    import math
+    x, y, z, w = q
+    n = math.sqrt(x*x + y*y + z*z + w*w)
+    return (0.0, 0.0, 0.0, 1.0) if n < 1e-12 else (x/n, y/n, z/n, w/n)
+
+def q_apply(q, v):
+    # rotate vector v by quaternion q
+    vx, vy, vz = v
+    x, y, z, w = q
+    # q * (v,0)
+    vqx = w*vx + y*vz - z*vy
+    vqy = w*vy + z*vx - x*vz
+    vqz = w*vz + x*vy - y*vx
+    vqw = -x*vx - y*vy - z*vz
+    # (result) * q_conj
+    cx, cy, cz, cw = -x, -y, -z, w
+    rx = vqw*cx + vqx*cw + vqy*cz - vqz*cy
+    ry = vqw*cy - vqx*cz + vqy*cw + vqz*cx
+    rz = vqw*cz + vqx*cy - vqy*cx + vqz*cw
+    return (rx, ry, rz)
 
 class StaticTFYamlNode(Node):
     def __init__(self):
@@ -219,6 +259,13 @@ class StaticTFYamlNode(Node):
         # Service to trigger calibration
         self._srv = self.create_service(Trigger, "calibrate_realsense_position", self._on_calibrate)
 
+        self._tf_buffer = Buffer()
+        self._tf_listener = TransformListener(self._tf_buffer, self)
+    
+        self._dyn_broadcaster = TransformBroadcaster(self)
+
+        self.robot_commands = self.create_publisher(PoseStamped,'/move_arm_position', qos_profile=10)
+
     def _on_calibrate(self, request, response):
         if self._calibration_active:
             response.success = False
@@ -233,6 +280,119 @@ class StaticTFYamlNode(Node):
         return response
 
     def _aruco_callback(self, msg: ArucoMarkers):
+
+        # get marker 3 pose and publish tranform from world to marker3
+
+
+        t = TransformStamped()
+
+        # Read message content and assign it to
+        # corresponding tf variables
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id = 'base_link'
+        t.child_frame_id = 'aruco_marker_3'
+
+
+
+        aruco_3_found = False
+        aruco_3_pose = None
+        aruco_3_orient = None
+        for marker, pose in zip(msg.marker_ids, msg.poses):
+            if marker == 3:
+                aruco_3_found = True
+                aruco_3_pose = pose.position
+                aruco_3_orient = pose.orientation
+                break
+
+
+        if aruco_3_found:
+
+            # get transform from camera_link  to base_link
+            # apply it to aruco_marker_3 pose and publish it 
+
+            
+
+        
+
+            base_frame = "base_link"
+            camera_frame = self._parent_frame  # e.g. "camera_color_optical_frame"
+            ok = False
+            try:
+                tf_bc = self._tf_buffer.lookup_transform(
+                    base_frame,             # target
+                    camera_frame,           # source
+                    rclpy.time.Time()       # latest available
+                )
+                ok = True
+            except Exception as ex:
+                self.get_logger().warn(
+                    f"TF lookup failed {camera_frame} -> {base_frame}: {ex}"
+                )
+                
+
+            
+            if ok:
+                # Extract T_base_camera
+                t_bc = (
+                    tf_bc.transform.translation.x,
+                    tf_bc.transform.translation.y,
+                    tf_bc.transform.translation.z,
+                )
+                q_bc = (
+                    tf_bc.transform.rotation.x,
+                    tf_bc.transform.rotation.y,
+                    tf_bc.transform.rotation.z,
+                    tf_bc.transform.rotation.w,
+                )
+                q_bc = q_normalize(q_bc)
+
+                # Pose of marker 3 in camera frame
+                p_cm = (aruco_3_pose.x, aruco_3_pose.y, aruco_3_pose.z)
+                if aruco_3_orient is not None:
+                    q_cm = (
+                        aruco_3_orient.x,
+                        aruco_3_orient.y,
+                        aruco_3_orient.z,
+                        aruco_3_orient.w,
+                    )
+                else:
+                    q_cm = (0.0, 0.0, 0.0, 1.0)
+
+                # Compose: T_base_marker = T_base_camera ∘ T_camera_marker
+                p_bm = tuple(tb + rb for tb, rb in zip(t_bc, q_apply(q_bc, p_cm)))
+                q_bm = q_normalize(q_mult(q_bc, q_cm))
+
+                # Fill and publish transform (base_link -> aruco_marker_3)
+                t.transform.translation.x = float(p_bm[0])
+                t.transform.translation.y = float(p_bm[1])
+                t.transform.translation.z = float(p_bm[2])
+                t.transform.rotation.x = float(q_bm[0])
+                t.transform.rotation.y = float(q_bm[1])
+                t.transform.rotation.z = float(q_bm[2])
+                t.transform.rotation.w = float(q_bm[3])
+
+                self._dyn_broadcaster.sendTransform(t)
+
+                pose_msg = PoseStamped()
+
+                pose_msg.header.stamp = self.get_clock().now().to_msg()
+                pose_msg.header.frame_id = 'base_link'
+
+                pose_msg.pose.position.x = float(p_bm[0])
+                pose_msg.pose.position.y = float(p_bm[1])
+                pose_msg.pose.position.z = 0.45
+
+                
+                pose_msg.pose.orientation.x = 0.7
+                pose_msg.pose.orientation.y = 0.667
+                pose_msg.pose.orientation.z = 0.026
+                pose_msg.pose.orientation.w = -0.042
+
+                self.robot_commands.publish(pose_msg)
+                self.get_logger().info("Send command to the robot")
+
+
+
         if not self._calibration_active:
             return
         # Append all poses in the incoming array; if empty, ignore

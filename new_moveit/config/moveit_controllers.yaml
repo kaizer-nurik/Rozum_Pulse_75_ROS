@@ -13,7 +13,6 @@ moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControll
 moveit_simple_controller_manager:
   controller_names:
     - rozum_joint_controller
-    - dh_ag95_gripper_controller
     
   rozum_joint_controller:
     type: FollowJointTrajectory
@@ -25,11 +24,5 @@ moveit_simple_controller_manager:
       - joint4
       - joint5
       - joint6
-  
-  dh_ag95_gripper_controller:
-    type: GripperCommand
-    joints:
-      - left_outer_knuckle_joint
-    action_ns: gripper_cmd
-    default: true
+
 

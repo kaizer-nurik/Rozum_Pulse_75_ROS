@@ -1,25 +1,25 @@
-# List of static transforms to publish
-# Each item may specify either rotation_quat [x, y, z, w] or rotation_rpy [roll, pitch, yaw]
-transforms:
-  - parent: "camera_color_optical_frame"
-    child: "world"
-    translation: [0.0, 0.0, 0.0]
-    rotation_rpy: [0.0, 0.0, 0.0]
-
-aruco:
-  - aruco_marker_0:
-    x_offset: -0.810
-    y_offset: -0.4755
-  - aruco_marker_1:
-    x_offset: -0.810
-    y_offset: +0.4755
-  - aruco_marker_2:
-    x_offset: -0.150
-    y_offset: +0.4755
-
 arena:
-  - x: 810
-  - y: 1100
-
-
-
+- x: 810
+- y: 1100
+aruco:
+- aruco_marker_0: null
+  x_offset: -0.81
+  y_offset: -0.4755
+- aruco_marker_1: null
+  x_offset: -0.81
+  y_offset: 0.4755
+- aruco_marker_2: null
+  x_offset: -0.15
+  y_offset: 0.4755
+transforms:
+- child: world
+  parent: camera_color_optical_frame
+  rotation_quat:
+  - 0.627148010575263
+  - 0.5537059020706352
+  - -0.3601655879286761
+  - 0.41276615185311016
+  translation:
+  - -0.09316932033283665
+  - -0.0035330115534463816
+  - 1.9290892255167462

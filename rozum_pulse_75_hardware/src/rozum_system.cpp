@@ -169,7 +169,7 @@ hardware_interface::return_type RozumSystemHardware::write(const rclcpp::Time &,
     
   // const std::string url = "http://10.10.10.20:8081/poses/run?speed=10&motionType=joint";
 
-  const std::string url = base_url_ + "/poses/run?speed=10&motionType=joint";
+  const std::string url = base_url_ + "/poses/run?speed=45&motionType=joint";
   std::string json_payload;
 
   {
