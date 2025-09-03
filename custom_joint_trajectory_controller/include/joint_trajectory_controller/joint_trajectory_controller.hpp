@@ -303,6 +303,9 @@ std::mutex rozum_cmd_mtx_;
 
 
 // helpers
+std::vector<double> goal_coords;
+JointTrajectoryPoint goal_point;
+bool is_in_goal() ;
 void rozumStartThread_();
 void rozumStopThread_();
 void rozumSenderLoop_();

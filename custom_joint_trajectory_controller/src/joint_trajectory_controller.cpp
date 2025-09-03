@@ -46,15 +46,52 @@
 #include "urdf/model.h"
 #endif
 
+
+
+
 namespace joint_trajectory_controller
 {
-JointTrajectoryController::JointTrajectoryController()
-: controller_interface::ControllerInterface(), dof_(0), num_cmd_joints_(0)
-{
+// HELPERS FUNCTIONS BEGIN
+inline std::string vec_to_string(const std::vector<double>& v,
+                                 const char* sep = ", ", int prec = 3) {
+  std::ostringstream oss;
+  oss.setf(std::ios::fixed);
+  oss << std::setprecision(prec) << '[';
+  for (size_t i = 0; i < v.size(); ++i) {
+    if (i) oss << sep;
+    oss << v[i];
+  }
+  oss << ']';
+  return oss.str();
 }
 
+bool JointTrajectoryController::is_in_goal(){
+  bool outside_goal_tolerance = false;
+  auto active_tol = active_tolerances_.readFromRT();
 
-// HELPERS FUNCTIONS BEGIN
+  read_state_from_state_interfaces(state_current_);
+  state_desired_ = goal_point;
+  // Check state/goal tolerance
+
+  RCLCPP_DEBUG(get_node()->get_logger(), "state_desired_: %s", vec_to_string(state_desired_.positions).c_str());
+  for (size_t index = 0; index < dof_; ++index)
+  {
+    compute_error_for_joint(state_error_, index, state_current_, state_desired_);
+  RCLCPP_DEBUG(get_node()->get_logger(), "state_error_: %s", vec_to_string(state_error_.positions).c_str());
+
+  RCLCPP_DEBUG(get_node()->get_logger(), "active_tol->goal_state_tolerance[index]");
+  RCLCPP_DEBUG(get_node()->get_logger(), "%f",active_tol->goal_state_tolerance[index].position);
+    if (
+      !check_state_tolerance_per_joint(
+        state_error_, index, active_tol->goal_state_tolerance[index], false /* show_errors */))
+    {
+      return false;
+
+    }
+
+  }
+  return true;
+}
 
 bool JointTrajectoryController::isMotionTerminatedStatus_(const std::string& s) const
 {
@@ -141,6 +178,16 @@ bool JointTrajectoryController::httpGet_(
 bool JointTrajectoryController::rozumEnqueue_(
   const trajectory_msgs::msg::JointTrajectory& traj)
 {
+  if (traj.points.empty()) return {};
+
+  const auto it = std::max_element(
+      traj.points.begin(), traj.points.end(),
+      [](const auto& a, const auto& b) {
+        return std::tie(a.time_from_start.sec, a.time_from_start.nanosec) <
+               std::tie(b.time_from_start.sec, b.time_from_start.nanosec);
+      });
+  goal_point = *it;
+  goal_coords = goal_point.positions;
   {
     std::lock_guard<std::mutex> lk(rozum_mu_);
     rozum_pending_traj_ = traj;
@@ -217,7 +264,12 @@ void JointTrajectoryController::rozumSenderLoop_()
     const auto & ctrl_order =
       command_joint_names_.empty() ? params_.joints : command_joint_names_;
     const auto payload = buildRozumPosesPayload_(traj, ctrl_order);
-
+    int sp = rozum_speed_percent_;
+    if (get_node()->has_parameter("rozum.speed_percent")) {
+      (void)get_node()->get_parameter("rozum.speed_percent", sp);
+    }
+    sp = std::clamp(sp, 1, 100);
+    rozum_speed_percent_ = sp;
     const std::string url =
       rozum_base_url_ + "/poses/run?speed=" + std::to_string(rozum_speed_percent_) +
       "&motionType=" + rozum_motion_type_;
@@ -362,6 +414,12 @@ bool JointTrajectoryController::rozumStopAndHold_()
 
 
 
+  
+JointTrajectoryController::JointTrajectoryController()
+: controller_interface::ControllerInterface(), dof_(0), num_cmd_joints_(0)
+{
+}
+
 controller_interface::CallbackReturn JointTrajectoryController::on_init()
 {
   try
@@ -449,11 +507,14 @@ controller_interface::return_type
 JointTrajectoryController::update(const rclcpp::Time& time,
                                   const rclcpp::Duration& period)
 {
+  const auto active_goal = *rt_active_goal_.readFromNonRT();
+
   
   const double nan = std::numeric_limits<double>::quiet_NaN();
   for (size_t i = 0; i < command_interfaces_.size(); ++i) {
     command_interfaces_[i].set_value(nan);
   }
+  read_state_from_state_interfaces(state_current_);
 
   
   if (rozum_goal_active_.load()) {
@@ -472,8 +533,9 @@ JointTrajectoryController::update(const rclcpp::Time& time,
 
     case RozumSendStatus::OK:
       if (rozum_goal_active_.exchange(false)) {
-        const auto active_goal = *rt_active_goal_.readFromNonRT();
-        if (active_goal) {
+        // auto active_goal = *rt_active_goal_.readFromNonRT();
+        if (active_goal && is_in_goal()) {
+
           auto result = std::make_shared<FollowJTrajAction::Result>();
           result->set__error_code(FollowJTrajAction::Result::SUCCESSFUL);
           result->set__error_string("Goal successfully reached!");
@@ -485,7 +547,7 @@ JointTrajectoryController::update(const rclcpp::Time& time,
 
           RCLCPP_INFO(get_node()->get_logger(), "Action goal SUCCEEDED");
           new_trajectory_msg_.reset();
-          new_trajectory_msg_.initRT(set_success_trajectory_point());
+          // new_trajectory_msg_.initRT(set_success_trajectory_point());
         }
       }
       // Reset state to IDLE to allow the next goal
@@ -495,34 +557,50 @@ JointTrajectoryController::update(const rclcpp::Time& time,
     case RozumSendStatus::FAILED:
     case RozumSendStatus::ABORTED:
       if (rozum_goal_active_.exchange(false)) {
-        const auto active_goal = *rt_active_goal_.readFromNonRT();
-      if (active_goal) {
-        auto result = std::make_shared<FollowJTrajAction::Result>();
-        result->set__error_code(FollowJTrajAction::Result::PATH_TOLERANCE_VIOLATED);
-        result->set__error_string(
-          rozum_last_error_.empty() ? "Aborted by device" : rozum_last_error_);
-        active_goal->setAborted(result);
+        // auto active_goal = *rt_active_goal_.readFromNonRT();
+      
+    //   if (active_goal) {
+    //     auto result = std::make_shared<FollowJTrajAction::Result>();
+    //     result->set__error_code(FollowJTrajAction::Result::PATH_TOLERANCE_VIOLATED);
+    //     result->set__error_string(
+    //       rozum_last_error_.empty() ? "Aborted by device" : rozum_last_error_);
+    //     active_goal->setAborted(result);
 
-        rt_active_goal_.writeFromNonRT(RealtimeGoalHandlePtr());
-        rt_has_pending_goal_ = false;
+    //     rt_active_goal_.writeFromNonRT(RealtimeGoalHandlePtr());
+    //     rt_has_pending_goal_ = false;
 
-        RCLCPP_WARN(get_node()->get_logger(),
-                    "Action goal ABORTED: %s",
-                    result->error_string.c_str());
+    //     RCLCPP_WARN(get_node()->get_logger(),
+    //                 "Action goal ABORTED: %s",
+    //                 result->error_string.c_str());
 
-        new_trajectory_msg_.reset();
-        new_trajectory_msg_.initRT(set_hold_position());
-      }
+    //     new_trajectory_msg_.reset();
+    //     new_trajectory_msg_.initRT(set_hold_position());
+    //   }
+    }
       rozum_state_.store(RozumSendStatus::IDLE);
       break;
+  }
+  
+  if (active_goal)
+      {
+        // send feedback
+        auto feedback = std::make_shared<FollowJTrajAction::Feedback>();
+        feedback->header.stamp = time;
+        feedback->joint_names = params_.joints;
+
+        feedback->actual = state_current_;
+        feedback->desired = state_desired_;
+        feedback->error = state_error_;
+        active_goal->setFeedback(feedback);
+
+  
   }
 
   return controller_interface::return_type::OK;
 }
 
 
-void JointTrajectoryController::read_state_from_state_interfaces(JointTrajectoryPoint & state)
-{
+void JointTrajectoryController::read_state_from_state_interfaces(JointTrajectoryPoint & state){
   auto assign_point_from_state_interface =
     [&](std::vector<double> & trajectory_point_interface, const auto & joint_interface)
   {
@@ -543,6 +621,7 @@ void JointTrajectoryController::read_state_from_state_interfaces(JointTrajectory
         joint_interface[index].get().get_value();
     }
   };
+
 
   assign_point_from_state_interface(state.positions, joint_state_interface_[0]);
   // velocity and acceleration states are optional
@@ -1316,7 +1395,7 @@ void JointTrajectoryController::topic_callback(
     // Tell the sender loop to exit its wait early for the old motion
     rozum_abort_wait_.store(true, std::memory_order_relaxed);
     // Perform device-level STOP in a blocking, serialized manner
-    (void)rozumStopAndHold_();
+    // (void)rozumStopAndHold_();
   }
 
   // Now replace the trajectory in the controller and queue it for the device
@@ -1351,7 +1430,7 @@ if (active_goal)
   RCLCPP_INFO(get_node()->get_logger(),
               "Preemption: request abort + Relax→Freeze before replacement");
   rozum_abort_wait_.store(true, std::memory_order_relaxed);  // <-- tell sender to exit early
-  (void)rozumStopAndHold_();  // <-- blocking RELAX→FREEZE; serialized with cmd mutex
+  // (void)rozumStopAndHold_();  // <-- blocking RELAX→FREEZE; serialized with cmd mutex
 }
 
   RCLCPP_INFO(get_node()->get_logger(), "Accepted new action goal");
@@ -1363,23 +1442,26 @@ rclcpp_action::CancelResponse JointTrajectoryController::goal_cancelled_callback
 {
   RCLCPP_INFO(get_node()->get_logger(), "Got request to cancel goal");
 
-  // Check that cancel request refers to currently active goal (if any)
   const auto active_goal = *rt_active_goal_.readFromNonRT();
   if (active_goal && active_goal->gh_ == goal_handle)
   {
     RCLCPP_INFO(get_node()->get_logger(),
                 "Canceling active action goal because cancel callback received.");
 
-    // Mark the current goal as canceled
     rt_has_pending_goal_ = false;
     auto action_res = std::make_shared<FollowJTrajAction::Result>();
     active_goal->setCanceled(action_res);
     rt_active_goal_.writeFromNonRT(RealtimeGoalHandlePtr());
 
-    // Device-level safe stop (non-blocking): Relax → Freeze + hold in the controller
-    rozumStopAndHoldAsync_();
+    // Safe stop on the device
+    // rozumStopAndHoldAsync_();
+
+    return rclcpp_action::CancelResponse::ACCEPT;   // <-- only accept when we actually canceled it
   }
-  return rclcpp_action::CancelResponse::ACCEPT;
+
+  // IMPORTANT: reject cancels that don't refer to the current active goal.
+  // Otherwise the action layer may mark the last goal as CANCELED even after succeed().
+  return rclcpp_action::CancelResponse::REJECT;
 }
 
 
@@ -1398,7 +1480,7 @@ void JointTrajectoryController::goal_accepted_callback(
   rozum_abort_wait_.store(true, std::memory_order_relaxed);
   RCLCPP_INFO(get_node()->get_logger(),
               "goal_accepted: request abort and perform blocking Relax→Freeze");
-  (void)rozumStopAndHold_();
+  // (void)rozumStopAndHold_();
 
   // === Send the new trajectory via your Rozum sender path ===
   const auto & traj = goal_handle->get_goal()->trajectory;
@@ -1418,6 +1500,14 @@ void JointTrajectoryController::goal_accepted_callback(
   rt_goal->preallocated_feedback_->joint_names = params_.joints;
   rt_goal->execute();
   rt_active_goal_.writeFromNonRT(rt_goal);
+  goal_handle_timer_.reset();
+
+  // Setup goal status checking timer
+  goal_handle_timer_ = get_node()->create_wall_timer(
+    action_monitor_period_.to_chrono<std::chrono::nanoseconds>(),
+    std::bind(&RealtimeGoalHandle::runNonRealtime, rt_goal));
+
+
 
   // Update tolerances from goal (unchanged)
   auto logger = this->get_node()->get_logger();
@@ -1767,6 +1857,26 @@ JointTrajectoryController::set_success_trajectory_point()
 {
   // set last command to be repeated at success, no matter if it has nonzero velocity or
   // acceleration
+  if(!current_trajectory_){
+    RCLCPP_FATAL(get_node()->get_logger(),"current_trajectory_ nullptr!");
+
+  }
+  if(!hold_position_msg_ptr_){
+    RCLCPP_FATAL(get_node()->get_logger(),"hold_position_msg_ptr_ nullptr!");
+
+  }
+  if ((hold_position_msg_ptr_->points.size()==0)){
+    RCLCPP_FATAL(get_node()->get_logger(),"ERROR HOLD POSITION IS EMPTY");
+
+  }
+  if (!(current_trajectory_->get_trajectory_msg())){
+    RCLCPP_FATAL(get_node()->get_logger(),"ERROR current_trajectory_->get_trajectory_msg() IS EMPTY");
+
+  }
+  if ((current_trajectory_->get_trajectory_msg()->points.size()==0)){
+    RCLCPP_FATAL(get_node()->get_logger(),"ERROR current_trajectory_->get_trajectory_msg()->points.size() IS EMPTY");
+
+  }
   hold_position_msg_ptr_->points[0] = current_trajectory_->get_trajectory_msg()->points.back();
   hold_position_msg_ptr_->points[0].time_from_start = rclcpp::Duration(0, 0);
 
