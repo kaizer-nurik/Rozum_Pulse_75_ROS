@@ -147,7 +147,10 @@ arm:
   planner_configs:
     - RRTkConfigDefault
     # - RRTConnectkConfigDefault
-
+gripper:
+  planner_configs:
+    - RRTkConfigDefault
+    # - RRTConnectkConfigDefault
 # gripper:
 #   planner_configs:
 #     - APSConfigDefault

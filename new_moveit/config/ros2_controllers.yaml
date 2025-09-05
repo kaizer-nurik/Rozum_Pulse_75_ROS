@@ -6,10 +6,11 @@ controller_manager:
       type: joint_state_broadcaster/JointStateBroadcaster
     rozum_joint_controller:
       type: custom_joint_trajectory_controller/JointTrajectoryController
-    # gripper_joint_state_broadcaster:
-    #   type: joint_state_broadcaster/JointStateBroadcaster
-    # dh_ag95_gripper_controller:
-    #   type: position_controllers/GripperActionController
+    gripper_joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    dh_ag95_gripper_controller:
+      type: position_controllers/GripperActionController
+
     # forward_position_controller:
     #   type: forward_command_controller/ForwardCommandController
 

@@ -30,11 +30,15 @@ def generate_launch_description():
     ).get("controller_names", [])
     ld = LaunchDescription()
     active_list = [
+        "gripper_joint_state_broadcaster",
+        # "forward_position_controller",
+        "dh_ag95_gripper_controller",
         "rozum_75_joint_state_broadcaster",
         "rozum_joint_controller"
     ]
     for controller in active_list:
         ld.add_action(
+
             Node(
                 package="controller_manager",
                 executable="spawner",

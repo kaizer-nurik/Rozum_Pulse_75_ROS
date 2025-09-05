@@ -26,12 +26,16 @@ ompl:
     - default_planning_response_adapters/ValidateSolution
     - default_planning_response_adapters/DisplayMotionPath
   planner_configs:
-    PRMstarkConfigDefault:
+    RRTConnectkConfigDefault:
+      range: 0
       type: geometric::PRMstar
   # Define planner(s) for each move_group
   arm:
     planner_configs:
-      - PRMstarkConfigDefault
+      - RRTConnectkConfigDefault
+  gripper:
+    planner_configs:
+      - PRMstarkConfigDefaRRTConnectkConfigDefaultult
   # Add additional planning pipeline config here
 plan_request_params:
   planning_attempts: 1
