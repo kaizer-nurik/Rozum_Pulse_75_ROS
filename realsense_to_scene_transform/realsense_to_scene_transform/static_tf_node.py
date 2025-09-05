@@ -18,6 +18,7 @@ from std_srvs.srv import Trigger
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf2_ros import Buffer, TransformListener, TransformBroadcaster
 import rclpy
+from rclpy.qos import qos_profile_sensor_data
 
 from geometry_msgs.msg import Pose, PoseStamped
 
@@ -253,7 +254,9 @@ class StaticTFYamlNode(Node):
         self._calibration_active = False
         self._poses_buffer = []
         self._target_count = 100
-        self._aruco_sub = self.create_subscription(ArucoMarkers, self._aruco_topic, self._aruco_callback, 10)
+        latest_qos = qos_profile_sensor_data
+        latest_qos.depth = 1
+        self._aruco_sub = self.create_subscription(ArucoMarkers, self._aruco_topic, self._aruco_callback, latest_qos)
         
 
         # Service to trigger calibration
@@ -264,7 +267,7 @@ class StaticTFYamlNode(Node):
     
         self._dyn_broadcaster = TransformBroadcaster(self)
 
-        self.robot_commands = self.create_publisher(PoseStamped,'/move_arm_position', qos_profile=10)
+        self.robot_commands = self.create_publisher(PoseStamped,'/move_arm_position', qos_profile=latest_qos)
 
     def _on_calibrate(self, request, response):
         if self._calibration_active:
@@ -357,7 +360,6 @@ class StaticTFYamlNode(Node):
                     )
                 else:
                     q_cm = (0.0, 0.0, 0.0, 1.0)
-
                 # Compose: T_base_marker = T_base_camera ∘ T_camera_marker
                 p_bm = tuple(tb + rb for tb, rb in zip(t_bc, q_apply(q_bc, p_cm)))
                 q_bm = q_normalize(q_mult(q_bc, q_cm))
@@ -383,10 +385,10 @@ class StaticTFYamlNode(Node):
                 pose_msg.pose.position.z = 0.45
 
                 
-                pose_msg.pose.orientation.x = 0.7
-                pose_msg.pose.orientation.y = 0.667
-                pose_msg.pose.orientation.z = 0.026
-                pose_msg.pose.orientation.w = -0.042
+                pose_msg.pose.orientation.x = float(q_bm[0])
+                pose_msg.pose.orientation.y = float(q_bm[1])
+                pose_msg.pose.orientation.z = float(q_bm[2])
+                pose_msg.pose.orientation.w = float(q_bm[3])
 
                 self.robot_commands.publish(pose_msg)
                 self.get_logger().info("Send command to the robot")

@@ -26,20 +26,38 @@ ompl:
     - default_planning_response_adapters/ValidateSolution
     - default_planning_response_adapters/DisplayMotionPath
   planner_configs:
-    RRTConnectkConfigDefault:
-      range: 0
-      type: geometric::PRMstar
+    RRTstarkConfigDefault:
+      type: geometric::RRTstar
+      optimization_objective: PathLengthOptimizationObjective   # or PathLengthOptimizationObjective, MechanicalWorkOptimizationObjective, MinimaxObjective, StateCostIntegralObjective
+      range: 0.0
+      goal_bias: 0.05
+      delay_collision_checking: 1
+      # Optional (if your MoveIt build exposes it): stop when “good enough”
+      # cost_threshold: 0.50
   # Define planner(s) for each move_group
   arm:
     planner_configs:
-      - RRTConnectkConfigDefault
+      - RRTstarkConfigDefault
   gripper:
     planner_configs:
-      - PRMstarkConfigDefaRRTConnectkConfigDefaultult
+      - RRTstarkConfigDefault
   # Add additional planning pipeline config here
 plan_request_params:
   planning_attempts: 1
   planning_pipeline: ompl
-  planner_id: "RRTConnectkConfigDefault"
+  planner_id: "RRTstarkConfigDefault"
   max_velocity_scaling_factor: 1.0
   max_acceleration_scaling_factor: 1.0
+  planning_time: 0.5
+  cost_threshold: 0.50
+
+
+
+# ompl_rrt_star:
+#   plan_request_params:
+#     planning_attempts: 1
+#     planning_pipeline: ompl            # use the OMPL pipeline
+#     planner_id: "RRTstarkConfigDefault"
+#     planning_time: 3.0                 # give RRT* more time to improve
+#     max_velocity_scaling_factor: 1.0
+#     max_acceleration_scaling_factor: 1.0

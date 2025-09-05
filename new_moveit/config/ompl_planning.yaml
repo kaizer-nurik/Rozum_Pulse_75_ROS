@@ -53,9 +53,13 @@ planner_configs:
     range: 0.0  # Max motion added to tree. ==> maxDistance_ default: 0.0, if 0.0, set on setup()
   RRTstarkConfigDefault:
     type: geometric::RRTstar
-    range: 0.0  # Max motion added to tree. ==> maxDistance_ default: 0.0, if 0.0, set on setup()
-    goal_bias: 0.05  # When close to goal select goal, with this probability? default: 0.05
-    delay_collision_checking: 1  # Stop collision checking as soon as C-free parent found. default 1
+    optimization_objective: PathLengthOptimizationObjective   # or PathLengthOptimizationObjective, MechanicalWorkOptimizationObjective, MinimaxObjective, StateCostIntegralObjective
+    range: 0.0
+    goal_bias: 0.05
+    delay_collision_checking: 1
+    planning_time: 0.5
+    # Optional (if your MoveIt build exposes it): stop when “good enough”
+    cost_threshold: 0.50
   TRRTkConfigDefault:
     type: geometric::TRRT
     range: 0.0  # Max motion added to tree. ==> maxDistance_ default: 0.0, if 0.0, set on setup()
@@ -145,11 +149,11 @@ planner_configs:
 
 arm:
   planner_configs:
-    - RRTkConfigDefault
+    - RRTstarkConfigDefault
     # - RRTConnectkConfigDefault
 gripper:
   planner_configs:
-    - RRTkConfigDefault
+    - RRTstarkConfigDefault
     # - RRTConnectkConfigDefault
 # gripper:
 #   planner_configs:

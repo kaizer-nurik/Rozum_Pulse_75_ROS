@@ -26,6 +26,7 @@ from moveit_msgs.msg import Constraints, PositionConstraint, OrientationConstrai
 from shape_msgs.msg import SolidPrimitive
 from geometry_msgs.msg import Pose
 
+from rclpy.qos import qos_profile_sensor_data
 
 try:
     from tf_transformations import quaternion_from_euler
@@ -87,8 +88,10 @@ class ToolTipPoseMoveItPy(Node):
 
 
         # Subscriber for streaming commands
+        latest_qos = qos_profile_sensor_data
+        latest_qos.depth = 1
         self.sub = self.create_subscription(
-            PoseStamped, "move_arm_position", self.on_target_msg, 10
+            PoseStamped, "move_arm_position", self.on_target_msg, latest_qos
         )
 
         # One-shot target via params
@@ -257,7 +260,7 @@ class ToolTipPoseMoveItPy(Node):
         
 
         # # Set goal
-        # self.planning_component.set_goal_state(pose_stamped_msg=target_pose,pose_link="link6_dummy")
+        # self.planning_component.set_goal_state(pose_stamped_msg=target_pose,pose_link="grasp_link")
         # # Plan
         # plan_result = self.planning_component.plan()
 
@@ -269,23 +272,26 @@ class ToolTipPoseMoveItPy(Node):
         #     self.get_logger().warn("Planning failed.")
 
         q = target_pose.pose.orientation
-        roll = math.atan2(2*(q.w*q.x + q.y*q.z), 1 - 2*(q.x*q.x + q.y*q.y)) 
-        self.plan_xy_zrange_roll(target_pose.pose.position.x,target_pose.pose.position.y,roll = roll,)
+        roll  = math.atan2(2*(q.w*q.x + q.y*q.z), 1 - 2*(q.x*q.x + q.y*q.y))
+        pitch = math.asin(max(-1.0, min(1.0, 2*(q.w*q.y - q.z*q.x))))
+        yaw   = math.atan2(2*(q.w*q.z + q.x*q.y), 1 - 2*(q.y*q.y + q.z*q.z)) + math.pi*60/180
+        self.get_logger().info(f"{roll} {pitch} {yaw}")
+        self.plan_xy_zrange_yaw(target_pose.pose.position.x-0.05,target_pose.pose.position.y+0.02,yaw = yaw,)
 
 
 
-    def plan_xy_zrange_roll(
+    def plan_xy_zrange_yaw(
     self,
     x: float,
     y: float,
-    z_min: float = 0.3,
-    z_max: float = 0.5,
-    roll: float = 0.0,                  # radians
+    z_min: float = 0.12,
+    z_max: float = 0.2,
+    yaw: float = 0.0,                  # radians
     xy_tol: float = 0.002,              # half-width in x,y (m)
-    roll_tol: float = math.radians(2),  # +/- roll tolerance (rad)
+    yaw_tol: float = math.radians(2),  # +/- yaw tolerance (rad)
     ):
         frame = self.get_parameter("base_frame").value
-        link  = "link6_dummy"
+        link  = "grasp_link"
 
         # --- Position constraint: thin box at (x,y), spanning z in [z_min, z_max]
         pc = PositionConstraint()
@@ -308,25 +314,28 @@ class ToolTipPoseMoveItPy(Node):
         pc.constraint_region = bv
         pc.weight = 1.0
 
-        # --- Orientation constraint: fix roll only; free pitch/yaw
+        # --- Orientation constraint: fix yaw only; free pitch/yaw
         oc = OrientationConstraint()
         oc.header.frame_id = frame
         oc.link_name = link
-        qx, qy, qz, qw = quaternion_from_euler(roll, 0.0, 0.0)
+        qx, qy, qz, qw = quaternion_from_euler( yaw, 1.512, 2.619 )
         oc.orientation.x, oc.orientation.y, oc.orientation.z, oc.orientation.w = qx, qy, qz, qw
-        oc.absolute_x_axis_tolerance = roll_tol      # constrain roll
-        oc.absolute_y_axis_tolerance = math.pi       # free pitch
-        oc.absolute_z_axis_tolerance = math.pi       # free yaw
+        oc.absolute_x_axis_tolerance = 0.0001       # free roll
+        oc.absolute_y_axis_tolerance = 0.1       # free pitch
+        oc.absolute_z_axis_tolerance = 0.1      # constrain yaw
         oc.weight = 1.0
 
         goal = Constraints()
         goal.position_constraints = [pc]
         goal.orientation_constraints = [oc]
-
+        
         # Plan & execute
         self.planning_component.set_start_state_to_current_state()
         self.planning_component.set_goal_state(motion_plan_constraints=[goal])
+        
         plan_result = self.planning_component.plan()
+
+        
         if plan_result:
             self.get_logger().info("Executing plan...")
             self.moveit.execute(plan_result.trajectory, controllers=[])
