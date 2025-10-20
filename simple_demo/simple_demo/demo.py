@@ -6,6 +6,7 @@ from typing import List, Optional
 
 import rclpy
 from rclpy.node import Node
+from rclpy.action import ActionClient
 
 from std_msgs.msg import Float64MultiArray
 from geometry_msgs.msg import Pose, PoseStamped
@@ -27,6 +28,10 @@ from shape_msgs.msg import SolidPrimitive
 from geometry_msgs.msg import Pose
 
 from rclpy.qos import qos_profile_sensor_data
+from std_srvs.srv import Trigger
+from control_msgs.action import GripperCommand
+from yolo_msgs.msg import DetectionArray
+from geometry_msgs.msg import Point
 
 try:
     from tf_transformations import quaternion_from_euler
@@ -93,6 +98,7 @@ class ToolTipPoseMoveItPy(Node):
         self.sub = self.create_subscription(
             PoseStamped, "move_arm_position", self.on_target_msg, latest_qos
         )
+        
 
         # One-shot target via params
         vals = [self._get_optional_float(p) for p in ["x", "y", "z", "roll", "pitch", "yaw"]]
@@ -102,6 +108,43 @@ class ToolTipPoseMoveItPy(Node):
 
         self.get_logger().info("tool_tip_pose_moveitpy ready.")
         self.load_scene()
+
+        # --- Gripper services (open/close) ---
+        # Parameters to configure gripper command values
+        self.declare_parameter("gripper_open_position", 0.0)   # unit depends on controller mapping
+        self.declare_parameter("gripper_close_position", 0.92)
+        self.declare_parameter("gripper_max_effort", 40.0)
+        self.declare_parameter("gripper_action_timeout_sec", 20.0)
+        self.declare_parameter("gripper_wait_server_sec", 5.0)
+        self.declare_parameter("gripper_action_name", "/dh_ag95_gripper_controller/gripper_cmd")
+
+        # Action client to existing GripperActionController
+        gripper_action_name = str(self.get_parameter("gripper_action_name").value)
+        self.get_logger().info(f"Connecting to gripper action: {gripper_action_name}")
+        self.gripper_client = ActionClient(
+            self,
+            GripperCommand,
+            gripper_action_name,
+        )
+
+        # Expose simple Trigger services
+        self.open_srv = self.create_service(Trigger, "open_gripper", self._on_open_gripper)
+        self.close_srv = self.create_service(Trigger, "close_gripper", self._on_close_gripper)
+
+        # --- YOLO 3D detections subscription and pick-and-place service ---
+        self.declare_parameter("yolo_detections_topic", "/yolo/detections_3d")
+        self.declare_parameter("pick_object_name", "teddy bear")
+        self.declare_parameter("place_container_name", "blue container")
+        self.declare_parameter("object_freshness_sec", 2.0)
+
+        self._last_seen_objects = {}
+        topic = self.get_parameter("yolo_detections_topic").value
+        self._yolo_sub = self.create_subscription(
+            DetectionArray, topic, self._on_yolo_detections, 10
+        )
+        self.pick_place_srv = self.create_service(
+            Trigger, "pick_place_teddy_to_container", self._on_pick_and_place
+        )
 
 
     def load_scene(self):
@@ -231,6 +274,256 @@ class ToolTipPoseMoveItPy(Node):
         co.operation = CollisionObject.ADD
         return co
 
+    def _on_yolo_detections(self, msg: DetectionArray):
+        now = self.get_clock().now().nanoseconds
+        for det in msg.detections:
+            name = (det.class_name or "").strip().lower()
+            if not name:
+                continue
+            if name in (self.get_parameter("pick_object_name").value.lower(),
+                        self.get_parameter("place_container_name").value.lower()):
+                p = det.bbox3d.center.position
+                self._last_seen_objects[name] = {
+                    "position": Point(x=p.x, y=p.y, z=p.z),
+                    "stamp_ns": now,
+                }
+
+    def _wait_for_objects(self, required_names: list, timeout_sec: Optional[float]) -> Optional[dict]:
+        start = self.get_clock().now().nanoseconds
+        freshness_ns = int(float(self.get_parameter("object_freshness_sec").value) * 1e9)
+        required_lower = [n.lower() for n in required_names]
+        while True:
+            now_ns = self.get_clock().now().nanoseconds
+            found = {}
+            for name in required_lower:
+                info = self._last_seen_objects.get(name)
+                if info and (now_ns - info["stamp_ns"]) <= freshness_ns:
+                    found[name] = info["position"]
+            if len(found) == len(required_lower):
+                return found
+            if timeout_sec is not None and (now_ns - start) > int(timeout_sec * 1e9):
+                return None
+            # brief sleep to yield CPU; MultiThreadedExecutor will keep callbacks flowing
+            import time
+            time.sleep(0.05)
+
+    def _on_pick_and_place(self, request: Trigger.Request, response: Trigger.Response) -> Trigger.Response:
+        pick_name = self.get_parameter("pick_object_name").value
+        place_name = self.get_parameter("place_container_name").value
+        self.get_logger().info(f"Waiting for '{pick_name}' and '{place_name}' detections...")
+        positions = self._wait_for_objects([pick_name, place_name], timeout_sec=3)
+        if positions is None:
+            response.success = False
+            response.message = "timeout waiting detections"
+            return response
+
+        bear_p = positions[pick_name.lower()]
+        cont_p = positions[place_name.lower()]
+
+        # Move above teddy bear and grasp
+        self.get_logger().info(
+            f"Moving to teddy bear at ({bear_p.x:.3f}, {bear_p.y:.3f}, {bear_p.z:.3f})"
+        )
+
+        if not self._send_gripper_goal(float(self.get_parameter("gripper_open_position").value), wait_result=False):
+            response.success = False
+            response.message = "failed to open gripper"
+            return response
+
+        import time
+        time.sleep(3)
+
+        ok = self.plan_xy_zrange_yaw(
+            bear_p.x-0.07,
+            bear_p.y,
+            z_min=bear_p.z+0.1,
+            z_max=bear_p.z + 0.2,
+        )
+        time.sleep(3)
+
+        ok = self.plan_xy_zrange_yaw(
+            bear_p.x-0.07,
+            bear_p.y,
+            z_min=bear_p.z,
+            z_max=bear_p.z + 0.04,
+        )
+        time.sleep(4)
+        if not ok:
+            response.success = False
+            response.message = "failed to reach teddy bear"
+            return response
+
+        if not self._send_gripper_goal(float(self.get_parameter("gripper_close_position").value), wait_result=False):
+            response.success = False
+            response.message = "failed to close gripper"
+            return response
+        time.sleep(3)
+        
+
+        # Move above container and release
+        self.get_logger().info(
+            f"Moving above container at ({cont_p.x:.3f}, {cont_p.y:.3f}, {cont_p.z:.3f})"
+        )
+        ok = self.plan_xy_zrange_yaw(
+            bear_p.x-0.07,
+            bear_p.y,
+            z_min=bear_p.z+0.8,
+            z_max=bear_p.z + 0.5,
+            container =True
+        )
+        ok = self.plan_xy_zrange_yaw(
+            cont_p.x-0.05,
+            cont_p.y,
+            z_min=cont_p.z ,
+            z_max=cont_p.z + 0.5,
+            container =True
+        )
+        time.sleep(3)
+
+        if not ok:
+            response.success = False
+            response.message = "failed to reach container"
+            return response
+
+        if not self._send_gripper_goal(float(self.get_parameter("gripper_open_position").value), wait_result=False):
+            response.success = False
+            response.message = "failed to open gripper"
+            return response
+        time.sleep(3)
+        
+
+        response.success = True
+        response.message = "pick and place done"
+        return response
+    def _send_gripper_goal(self, position: float, wait_result: bool = False, timeout_sec: Optional[float] = None) -> bool:
+        """Send a gripper goal to the configured GripperCommand action.
+        If wait_result is True, synchronously wait for acceptance and result with a timeout.
+        Returns True on success, False otherwise.
+        """
+        # Resolve timeouts
+        try:
+            server_timeout = float(self.get_parameter("gripper_wait_server_sec").value)
+        except Exception:
+            server_timeout = 5.0
+        if timeout_sec is None:
+            try:
+                timeout_sec = float(self.get_parameter("gripper_action_timeout_sec").value)
+            except Exception:
+                timeout_sec = 20.0
+
+        # Ensure server is up
+        if not self.gripper_client.wait_for_server(timeout_sec=server_timeout):
+            self.get_logger().error("Gripper action server not available. Verify gripper_action_name and namespaces.")
+            return False
+
+        # Build goal
+        goal = GripperCommand.Goal()
+        goal.command.position = float(position)
+        try:
+            goal.command.max_effort = float(self.get_parameter("gripper_max_effort").value)
+        except Exception:
+            goal.command.max_effort = 40.0
+
+        # Send goal
+        try:
+            send_future = self.gripper_client.send_goal_async(goal)
+        except Exception as e:
+            self.get_logger().error(f"Failed to send gripper goal: {e}")
+            return False
+
+        if not wait_result:
+            # Non-blocking: attach logging callbacks
+            def _on_goal_sent(fut):
+                try:
+                    handle = fut.result()
+                    if not handle.accepted:
+                        self.get_logger().warn("Gripper goal rejected by controller")
+                        return
+                    result_future = handle.get_result_async()
+
+                    def _on_result(_):
+                        try:
+                            _ = result_future.result()
+                            self.get_logger().info(
+                                f"Gripper action finished (pos={goal.command.position:.3f}, effort={goal.command.max_effort:.1f})"
+                            )
+                        except Exception as err:
+                            self.get_logger().error(f"Gripper result error: {err}")
+
+                    result_future.add_done_callback(_on_result)
+                except Exception as err:
+                    self.get_logger().error(f"Error after goal dispatch: {err}")
+
+            send_future.add_done_callback(_on_goal_sent)
+            return True
+
+        # Blocking path: wait for acceptance and result
+        try:
+            from rclpy import spin_until_future_complete
+        except Exception:
+            spin_until_future_complete = None
+
+        # Wait for acceptance
+        if spin_until_future_complete is None:
+            spin_until_future_complete(self, send_future, timeout_sec=timeout_sec)
+        else:
+            start_ns = self.get_clock().now().nanoseconds
+            while not send_future.done():
+                if (self.get_clock().now().nanoseconds - start_ns) > int(timeout_sec * 1e9):
+                    break
+                rclpy.spin_once(self, timeout_sec=0.05)
+
+        if not send_future.done():
+            self.get_logger().error("Timeout waiting for gripper goal acceptance")
+            return False
+
+        try:
+            handle = send_future.result()
+        except Exception as e:
+            self.get_logger().error(f"Failed to obtain goal handle: {e}")
+            return False
+
+        if not handle.accepted:
+            self.get_logger().warn("Gripper goal rejected by controller")
+            return False
+
+        # Wait for result
+        result_future = handle.get_result_async()
+        if spin_until_future_complete is not None:
+            spin_until_future_complete(self, result_future, timeout_sec=timeout_sec)
+        else:
+            start_ns = self.get_clock().now().nanoseconds
+            while not result_future.done():
+                if (self.get_clock().now().nanoseconds - start_ns) > int(timeout_sec * 1e9):
+                    break
+                rclpy.spin_once(self, timeout_sec=0.05)
+
+        if not result_future.done():
+            self.get_logger().error("Timeout waiting for gripper action result")
+            return False
+
+        try:
+            _ = result_future.result()
+            return True
+        except Exception as e:
+            self.get_logger().error(f"Error retrieving gripper result: {e}")
+            return False
+
+    
+    def _on_open_gripper(self, request: Trigger.Request, response: Trigger.Response) -> Trigger.Response:
+        open_pos = float(self.get_parameter("gripper_open_position").value)
+        ok = self._send_gripper_goal(open_pos)
+        response.success = bool(ok)
+        response.message = "open command sent" if ok else "failed to send open command"
+        return response
+
+    def _on_close_gripper(self, request: Trigger.Request, response: Trigger.Response) -> Trigger.Response:
+        close_pos = float(self.get_parameter("gripper_close_position").value)
+        ok = self._send_gripper_goal(close_pos)
+        response.success = bool(ok)
+        response.message = "close command sent" if ok else "failed to send close command"
+        return response
+
 
     def _get_optional_float(self, name: str) -> Optional[float]:
         val = self.get_parameter(name).value
@@ -276,7 +569,7 @@ class ToolTipPoseMoveItPy(Node):
         pitch = math.asin(max(-1.0, min(1.0, 2*(q.w*q.y - q.z*q.x))))
         yaw   = math.atan2(2*(q.w*q.z + q.x*q.y), 1 - 2*(q.y*q.y + q.z*q.z)) + math.pi*60/180
         self.get_logger().info(f"{roll} {pitch} {yaw}")
-        self.plan_xy_zrange_yaw(target_pose.pose.position.x-0.05,target_pose.pose.position.y+0.02,yaw = yaw,)
+        self.plan_xy_zrange_yaw(target_pose.pose.position.x,target_pose.pose.position.y,z_min = target_pose.pose.position.z,z_max = target_pose.pose.position.z+0.05,yaw = yaw,)
 
 
 
@@ -287,8 +580,9 @@ class ToolTipPoseMoveItPy(Node):
     z_min: float = 0.12,
     z_max: float = 0.2,
     yaw: float = 0.0,                  # radians
-    xy_tol: float = 0.002,              # half-width in x,y (m)
+    xy_tol: float = 0.01,              # half-width in x,y (m)
     yaw_tol: float = math.radians(2),  # +/- yaw tolerance (rad)
+    container =False
     ):
         frame = self.get_parameter("base_frame").value
         link  = "grasp_link"
@@ -320,11 +614,18 @@ class ToolTipPoseMoveItPy(Node):
         oc.link_name = link
         qx, qy, qz, qw = quaternion_from_euler( yaw, 1.512, 2.619 )
         oc.orientation.x, oc.orientation.y, oc.orientation.z, oc.orientation.w = qx, qy, qz, qw
-        oc.absolute_x_axis_tolerance = 0.0001       # free roll
-        oc.absolute_y_axis_tolerance = 0.1       # free pitch
-        oc.absolute_z_axis_tolerance = 0.1      # constrain yaw
+        oc.absolute_x_axis_tolerance = 0.5       # free roll
+        oc.absolute_y_axis_tolerance = 0.5       # free pitch
+        oc.absolute_z_axis_tolerance = 0.5      # constrain yaw
         oc.weight = 1.0
-
+        if container:
+            oc.absolute_x_axis_tolerance = 3.14       # free roll
+            oc.absolute_y_axis_tolerance = 1.4       # free pitch
+            oc.absolute_z_axis_tolerance = 3.15      # constrain yaw
+        else:
+            oc.absolute_x_axis_tolerance = 0.5       # free roll
+            oc.absolute_y_axis_tolerance = 0.5       # free pitch
+            oc.absolute_z_axis_tolerance = 0.5      # constrain yaw
         goal = Constraints()
         goal.position_constraints = [pc]
         goal.orientation_constraints = [oc]
@@ -339,16 +640,21 @@ class ToolTipPoseMoveItPy(Node):
         if plan_result:
             self.get_logger().info("Executing plan...")
             self.moveit.execute(plan_result.trajectory, controllers=[])
+            return True
         else:
             self.get_logger().warn("Planning failed.")
+            return False
 
 
 
 def main():
     rclpy.init()
     node = ToolTipPoseMoveItPy()
+    from rclpy.executors import MultiThreadedExecutor
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:

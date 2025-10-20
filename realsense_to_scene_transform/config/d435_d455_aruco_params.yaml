@@ -1,0 +1,10 @@
+aruco_node:
+    ros__parameters:
+        # Aruco detection parameters
+        marker_size: 0.0149 # Size of the markers in meters
+        aruco_dictionary_id: DICT_5X5_50 # Aruco dictionary type
+        d455_serial_no: "030422250517"
+        d435_serial_no: "815412070991"
+        robot_name: rozum
+        d455_camera_name: D455_1
+        d435_camera_name: D435_1

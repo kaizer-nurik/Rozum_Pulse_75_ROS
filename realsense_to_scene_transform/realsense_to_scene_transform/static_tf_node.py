@@ -402,6 +402,7 @@ class StaticTFYamlNode(Node):
             return
         if len(self._poses_buffer) < self._target_count:
             self._poses_buffer.append(msg)
+            self.get_logger().info(f"Collected {len(self._poses_buffer)} poses")
             if len(self._poses_buffer) >= self._target_count:
                 self._poses_buffer = self._poses_buffer[: self._target_count]
                 self._calibration_callback()

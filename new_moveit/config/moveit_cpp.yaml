@@ -19,8 +19,8 @@ ompl:
   request_adapters:
     - default_planning_request_adapters/ResolveConstraintFrames
     - default_planning_request_adapters/ValidateWorkspaceBounds
-    - default_planning_request_adapters/CheckStartStateBounds
-    - default_planning_request_adapters/CheckStartStateCollision
+    # - default_planning_request_adapters/CheckStartStateBounds
+    # - default_planning_request_adapters/CheckStartStateCollision
   response_adapters:
     - default_planning_response_adapters/AddTimeOptimalParameterization
     - default_planning_response_adapters/ValidateSolution
@@ -48,8 +48,10 @@ plan_request_params:
   planner_id: "RRTstarkConfigDefault"
   max_velocity_scaling_factor: 1.0
   max_acceleration_scaling_factor: 1.0
-  planning_time: 0.5
+  planning_time: 3.0
   cost_threshold: 0.50
+  range: 2.0
+  goal_bias: 0.7
 
 
 

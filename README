@@ -21,3 +21,18 @@ usbipd attach --wsl --busid 1-1
 docker run -it --rm   --net=host   -e DISPLAY=$DISPLAY   -e QT_X11_NO_MITSHM=1   -v $PWD:/workspace/src   -v /tmp/.X11-unix:/tmp/.X11-unix:rw   moveit/moveit2:jazzy-release
 
 apt install rapidjson-dev ros-jazzy-control* ros-jazzy-serial-driver ros-jazzy-asio-cmake-module ros-jazzy-librealsense2
+
+ros2 launch rozum_moveit demo.launch.py
+
+sudo chmod 777 /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_BG004CBE-if00-port0
+
+ros2 launch new_moveit demo.launch.py
+
+. /opt/ros/jazzy/env/bin/activate #(do before colcon build)
+ros2 launch realsense_to_scene_transform dual_aruco_with_tf.launch.py
+ros2 service call /calibrate_realsense_position std_srvs/srv/Trigger
+
+ros2 launch yolo_bringup yolo.launch.py
+cd .. && . ./install/setup.bash
+
+ros2 launch rosbridge_server rosbridge_websocket_launch.xml

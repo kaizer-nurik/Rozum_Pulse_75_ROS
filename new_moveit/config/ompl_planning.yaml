@@ -57,7 +57,7 @@ planner_configs:
     range: 0.0
     goal_bias: 0.05
     delay_collision_checking: 1
-    planning_time: 0.5
+    planning_time: 3.0
     # Optional (if your MoveIt build exposes it): stop when “good enough”
     cost_threshold: 0.50
   TRRTkConfigDefault:
