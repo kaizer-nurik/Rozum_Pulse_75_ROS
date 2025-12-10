@@ -39,7 +39,8 @@ rrtstar_planning:
 # === Конфиг для OMPL pipeline ===
 ompl:
   # Старое поле (можно оставить для совместимости)
-  planning_plugin: "ompl_interface/OMPLPlanner"
+  planning_plugin: 
+    - ompl_interface/OMPLPlanner"
 
   # Новое — именно его читает PlanningPipeline (список!)
   planning_plugins:
@@ -82,7 +83,7 @@ plan_request_params:
 
   # Каким pipeline пользоваться по умолчанию
   # Можешь поставить "rrtstar", если хочешь через свой планер сразу:
-  planning_pipeline: "rrtstar"
+  planning_pipeline: ["rrtstar"]
   # или "ompl"
 
   planner_id: "RRTstarkConfigDefault"
