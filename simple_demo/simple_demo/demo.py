@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 
+import copy
 import math
 from typing import List, Optional
 
@@ -22,10 +23,6 @@ from shape_msgs.msg import SolidPrimitive
 
 from ament_index_python.packages import get_package_share_directory
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
-
-from moveit_msgs.msg import Constraints, PositionConstraint, OrientationConstraint, BoundingVolume
-from shape_msgs.msg import SolidPrimitive
-from geometry_msgs.msg import Pose
 
 from rclpy.qos import qos_profile_sensor_data
 from std_srvs.srv import Trigger
@@ -87,6 +84,8 @@ class ToolTipPoseMoveItPy(Node):
         self.moveit = MoveItPy(node_name="moveit_py")
         group_name = "arm"
         self.planning_component = self.moveit.get_planning_component(group_name)
+        self.arm_group_name = group_name
+        self.eef_link_name = self.get_parameter("eef_link").value or "grasp_link"
 
         # Start planning scene monitor (for current state updates)
         self.scene_monitor = self.moveit.get_planning_scene_monitor()
@@ -334,20 +333,24 @@ class ToolTipPoseMoveItPy(Node):
         time.sleep(3)
 
         ok = self.plan_xy_zrange_yaw(
-            bear_p.x-0.07,
-            bear_p.y,
-            z_min=bear_p.z+0.1,
+            bear_p.x-0.13,
+            bear_p.y+0.05,
+            z_min=0.15,
             z_max=bear_p.z + 0.2,
         )
-        time.sleep(3)
-
-        ok = self.plan_xy_zrange_yaw(
-            bear_p.x-0.07,
-            bear_p.y,
-            z_min=bear_p.z,
+        time.sleep(2)
+        for dz in range(8):
+            ok = self.plan_xy_zrange_yaw(
+            bear_p.x-0.13,
+            bear_p.y+0.05,
+            z_min=-0.08+dz/100,
             z_max=bear_p.z + 0.04,
-        )
-        time.sleep(4)
+            )
+            self.get_logger().info(str(dz))
+            if ok:
+                break
+        time.sleep(2)
+        
         if not ok:
             response.success = False
             response.message = "failed to reach teddy bear"
@@ -357,28 +360,39 @@ class ToolTipPoseMoveItPy(Node):
             response.success = False
             response.message = "failed to close gripper"
             return response
-        time.sleep(3)
+        time.sleep(1)
+
+        ok = self.plan_xy_zrange_yaw(
+            bear_p.x-0.13,
+            bear_p.y+0.05,
+            z_min=0.15,
+            z_max=bear_p.z + 0.2,
+        )
+        time.sleep(1)
         
 
         # Move above container and release
         self.get_logger().info(
             f"Moving above container at ({cont_p.x:.3f}, {cont_p.y:.3f}, {cont_p.z:.3f})"
         )
-        ok = self.plan_xy_zrange_yaw(
-            bear_p.x-0.07,
-            bear_p.y,
-            z_min=bear_p.z+0.8,
-            z_max=bear_p.z + 0.5,
-            container =True
-        )
+
         ok = self.plan_xy_zrange_yaw(
             cont_p.x-0.05,
             cont_p.y,
-            z_min=cont_p.z ,
+            z_min=0.1,
             z_max=cont_p.z + 0.5,
             container =True
         )
-        time.sleep(3)
+        time.sleep(1)
+
+        ok = self.plan_xy_zrange_yaw(
+            cont_p.x-0.05,
+            cont_p.y,
+            z_min=0.02,
+            z_max=cont_p.z + 0.5,
+            container =True
+        )
+        time.sleep(1)
 
         if not ok:
             response.success = False
@@ -389,12 +403,14 @@ class ToolTipPoseMoveItPy(Node):
             response.success = False
             response.message = "failed to open gripper"
             return response
-        time.sleep(3)
+        time.sleep(1)
         
 
         response.success = True
         response.message = "pick and place done"
         return response
+    
+    
     def _send_gripper_goal(self, position: float, wait_result: bool = False, timeout_sec: Optional[float] = None) -> bool:
         """Send a gripper goal to the configured GripperCommand action.
         If wait_result is True, synchronously wait for acceptance and result with a timeout.
@@ -534,6 +550,77 @@ class ToolTipPoseMoveItPy(Node):
     def on_target_msg(self, msg: PoseStamped):
         self.move_to_rpy(msg)
 
+    def is_manipulator_moving(self, tolerance: float = 1e-3) -> bool:
+        """
+        Returns True if the manipulator's joint positions are changing (i.e., it's moving),
+        otherwise returns False.
+        Uses MoveIt's current robot state via the planning scene monitor.
+        """
+        try:
+            # Get first joint state snapshot
+            state1 = self.scene_monitor.get_current_state()
+            if state1 is None:
+                self.get_logger().warn("Unable to retrieve current robot state.")
+                return False
+
+            joints1 = state1.get_joint_group_positions(self.arm_group_name)
+
+            # Wait briefly and get second snapshot
+            import time
+            time.sleep(0.1)
+
+            state2 = self.scene_monitor.get_current_state()
+            if state2 is None:
+                return False
+
+            joints2 = state2.get_joint_group_positions(self.arm_group_name)
+
+            # Compare joint positions
+            diffs = [abs(a - b) for a, b in zip(joints1, joints2)]
+            moving = any(d > tolerance for d in diffs)
+
+            return moving
+        except Exception as e:
+            self.get_logger().error(f"Failed to determine manipulator motion: {e}")
+            return False
+
+    def wait_until_manipulator_stopped(self, tolerance: float = 1e-3, stable_time: float = 0.5, timeout: float = 30.0) -> bool:
+        """
+        Blocks until the manipulator stops moving.
+        Returns True if the manipulator becomes still before timeout, False otherwise.
+
+        Args:
+            tolerance: Minimum joint change to be considered movement.
+            stable_time: How long (in seconds) the manipulator must remain still.
+            timeout: Max time (in seconds) to wait before giving up.
+        """
+        import time
+
+        start_time = time.time()
+        last_moving = True
+        still_since = None
+
+        while time.time() - start_time < timeout:
+            moving = self.is_manipulator_moving(tolerance=tolerance)
+
+            if moving:
+                last_moving = True
+                still_since = None
+            else:
+                if last_moving:
+                    # just stopped moving, start counting still time
+                    still_since = time.time()
+                    last_moving = False
+                elif still_since is not None and (time.time() - still_since) >= stable_time:
+                    # remained still for enough time
+                    self.get_logger().info("Manipulator has stopped moving.")
+                    return True
+
+            time.sleep(0.1)
+
+        self.get_logger().warn("Timeout while waiting for manipulator to stop.")
+        return False
+
     def move_to_rpy(self, target_pose: PoseStamped):
         # x, y, z, roll, pitch, yaw = [float(v) for v in target]
         # qx, qy, qz, qw = quaternion_from_euler(roll, pitch, yaw)
@@ -574,76 +661,322 @@ class ToolTipPoseMoveItPy(Node):
 
 
     def plan_xy_zrange_yaw(
-    self,
-    x: float,
-    y: float,
-    z_min: float = 0.12,
-    z_max: float = 0.2,
-    yaw: float = 0.0,                  # radians
-    xy_tol: float = 0.01,              # half-width in x,y (m)
-    yaw_tol: float = math.radians(2),  # +/- yaw tolerance (rad)
-    container =False
-    ):
-        frame = self.get_parameter("base_frame").value
-        link  = "grasp_link"
+        self,
+        x: float,
+        y: float,
+        z_min: float = 0.12,
+        z_max: float = 0.2,
+        yaw: float = 0.0,
+        xy_tol: float = 0.01,
+        yaw_tol: float = math.radians(2),  # unused, retained for API compatibility
+        container: bool = False,
+    ) -> bool:
+        """Plan to a Cartesian pose by solving IK and executing a joint trajectory."""
 
-        # --- Position constraint: thin box at (x,y), spanning z in [z_min, z_max]
-        pc = PositionConstraint()
-        pc.header.frame_id = frame
-        pc.link_name = link
 
-        box = SolidPrimitive()
-        box.type = SolidPrimitive.BOX
-        box.dimensions = [2.0 * xy_tol, 2.0 * xy_tol, (z_max - z_min)]  # BOX_X, BOX_Y, BOX_Z
 
-        center = Pose()
-        center.orientation.w = 1.0
-        center.position.x = x
-        center.position.y = y
-        center.position.z = 0.5 * (z_min + z_max)
+        group_name = self.arm_group_name
+        base_frame = "base_link"
+        eef_link =  "grasp_link"
 
-        bv = BoundingVolume()
-        bv.primitives = [box]
-        bv.primitive_poses = [center]
-        pc.constraint_region = bv
-        pc.weight = 1.0
-
-        # --- Orientation constraint: fix yaw only; free pitch/yaw
-        oc = OrientationConstraint()
-        oc.header.frame_id = frame
-        oc.link_name = link
-        qx, qy, qz, qw = quaternion_from_euler( yaw, 1.512, 2.619 )
-        oc.orientation.x, oc.orientation.y, oc.orientation.z, oc.orientation.w = qx, qy, qz, qw
-        oc.absolute_x_axis_tolerance = 0.5       # free roll
-        oc.absolute_y_axis_tolerance = 0.5       # free pitch
-        oc.absolute_z_axis_tolerance = 0.5      # constrain yaw
-        oc.weight = 1.0
-        if container:
-            oc.absolute_x_axis_tolerance = 3.14       # free roll
-            oc.absolute_y_axis_tolerance = 1.4       # free pitch
-            oc.absolute_z_axis_tolerance = 3.15      # constrain yaw
-        else:
-            oc.absolute_x_axis_tolerance = 0.5       # free roll
-            oc.absolute_y_axis_tolerance = 0.5       # free pitch
-            oc.absolute_z_axis_tolerance = 0.5      # constrain yaw
-        goal = Constraints()
-        goal.position_constraints = [pc]
-        goal.orientation_constraints = [oc]
-        
-        # Plan & execute
         self.planning_component.set_start_state_to_current_state()
-        self.planning_component.set_goal_state(motion_plan_constraints=[goal])
-        
-        plan_result = self.planning_component.plan()
+        pose_goal = PoseStamped()
+        pose_goal.header.frame_id = "base_link"
+        quat = quaternion_from_euler(yaw, 1.512, 2.619)
+        pose_goal.pose.orientation.w = quat[3]
+        pose_goal.pose.orientation.x = quat[0]
+        pose_goal.pose.orientation.y = quat[1]
+        pose_goal.pose.orientation.z = quat[2]
+        pose_goal.pose.position.x = x
+        pose_goal.pose.position.y = y
+        pose_goal.pose.position.z = z_min+0.1
+        self.planning_component.set_goal_state(pose_stamped_msg=pose_goal, pose_link="grasp_link")
+
+        # current_state = self.planning_component.get_start_state()
+        # if current_state is None:
+        #     self.get_logger().error("Unable to fetch current robot state.")
+        #     return False
+
+        # try:
+        #     self.scene_monitor.update_frame_transforms()
+        # except RuntimeError as exc:
+        #     self.get_logger().debug(f"Failed to refresh frame transforms before IK search: {exc}")
+
+        # try:
+        #     current_positions = list(current_state.get_joint_group_positions(group_name))
+        # except RuntimeError as exc:
+        #     self.get_logger().error(f"Failed to read current joint positions: {exc}")
+        #     return False
+
+        # # Prepare orientation candidates (primary orientation first).
+        # base_roll = -1.553
+        # base_pitch = -0.024
+        # roll_offsets = [0.0, -0.25, 0.25]
+        # pitch_offsets = [0.0, -0.25, 0.25]
+        # yaw_offsets = [0.0, -0.2, 0.2]
+        # if container:
+        #     roll_offsets = [0.0, -0.4, 0.4]
+        #     pitch_offsets = [0.0, -0.6, 0.6]
+        #     yaw_offsets = [0.0, -0.5, 0.5]
+
+        # orientation_candidates: List[tuple] = [quaternion_from_euler(yaw, 1.512, 2.619)]
+        # # orientation_candidates: List[tuple] = []
+        # # for yaw_delta in yaw_offsets:
+        # #     for pitch_delta in pitch_offsets:
+        # #         for roll_delta in roll_offsets:
+        # #             orientation_candidates.append(
+        # #                 quaternion_from_euler(
+        # #                     base_roll + roll_delta,
+        # #                     base_pitch + pitch_delta,
+        # #                     yaw + yaw_delta,
+        # #                 )
+        # #             )
+
+        # # Deduplicate while preserving order.
+        # # seen_orientations = set()
+        # # unique_orientations: List[tuple] = []
+        # # for quat in orientation_candidates:
+        # #     key = tuple(round(v, 6) for v in quat)
+        # #     if key not in seen_orientations:
+        # #         unique_orientations.append(quat)
+        # #         seen_orientations.add(key)
+        # # orientation_candidates = unique_orientations
+
+        # # Sample z within the admissible range.
+        # if math.isclose(z_min, z_max, abs_tol=1e-4):
+        #     z_samples = [z_min]
+        # else:
+        #     steps = max(3, min(9, int(abs(z_max - z_min) / 0.01) + 1))
+        #     step = (z_max - z_min) / (steps - 1)
+        #     z_samples = [z_min + i * step for i in range(steps)]
+        # z_samples = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,]
+        # # Generate xy offsets to search for a feasible IK solution near the target.
+        # offsets = [(0.0, 0.0)]
+        # seen_offsets = {(0.0, 0.0)}
+        # xy_step = max(0.01, xy_tol if xy_tol > 0.0 else 0.01)
+        # max_xy_radius = max(0.01, xy_tol * 1.0)
+        # radius = xy_step
+        # while radius <= max_xy_radius + 1e-9:
+        #     samples = [-radius, 0.0, radius]
+        #     new_offsets = []
+        #     for dx in samples:
+        #         for dy in samples:
+        #             if abs(dx) < 1e-6 and abs(dy) < 1e-6:
+        #                 continue
+        #             key = (round(dx, 5), round(dy, 5))
+        #             if key in seen_offsets:
+        #                 continue
+        #             seen_offsets.add(key)
+        #             new_offsets.append((dx, dy))
+        #     new_offsets.sort(key=lambda item: (abs(item[0]) + abs(item[1]), -item[1]))
+        #     offsets.extend(new_offsets)
+        #     radius += xy_step
+        # self.get_logger().info(f'offsets initialised, {len(offsets)}')
+        # best_joint_positions: Optional[List[float]] = None
+        # best_pose: Optional[Pose] = None
+        # best_metrics = (float("inf"), float("inf"), float("inf"), float("inf"))
+        # best_colliding: Optional[tuple] = None
+        # target_z_preference = 0.5 * (z_min + z_max)
+
+        # for orientation_idx, quat in enumerate(orientation_candidates):
+        #     for z in z_samples:
+        #         self.get_logger().info(f'z sample {z}')
+
+        #         for dx, dy in offsets:
+                    
+        #             candidate_pose = Pose()
+        #             candidate_pose.position.x = x + dx
+        #             candidate_pose.position.y = y + dy
+        #             candidate_pose.position.z = z
+        #             candidate_pose.orientation.x = quat[0]
+        #             candidate_pose.orientation.y = quat[1]
+        #             candidate_pose.orientation.z = quat[2]
+        #             candidate_pose.orientation.w = quat[3]
+
+        #             seed_state = copy.deepcopy(current_state)
+        #             try:
+        #                 success = seed_state.set_from_ik(
+        #                     group_name,
+        #                     candidate_pose,
+        #                     tip_name=eef_link,
+        #                     timeout=0.2,
+        #                 )
+        #             except RuntimeError as exc:
+        #                 self.get_logger().debug(f"IK call failed: {exc}")
+        #                 success = False
+
+        #             if not success:
+        #                 continue
+
+        #             seed_state.update()
+
+        #             try:
+        #                 joint_positions = list(
+        #                     seed_state.get_joint_group_positions(group_name)
+        #                 )
+        #             except RuntimeError as exc:
+        #                 self.get_logger().warn(f"Failed to read IK solution joints: {exc}")
+        #                 continue
+
+        #             joint_distance = math.sqrt(
+        #                 sum(
+        #                     (jp - cp) ** 2
+        #                     for jp, cp in zip(joint_positions, current_positions)
+        #                 )
+        #             )
+        #             xy_error = math.sqrt(dx * dx + dy * dy)
+        #             z_error = abs(z - target_z_preference)
+        #             metrics = (
+        #                 joint_distance,
+        #                 xy_error,
+        #                 z_error,
+        #                 float(orientation_idx),
+        #             )
+
+        #             in_collision = False
+        #             with self.scene_monitor.read_only() as locked_scene:
+        #                 try:
+        #                     in_collision = locked_scene.is_state_colliding(
+        #                         seed_state, group_name, False
+        #                     )
+        #                 except RuntimeError as exc:
+        #                     self.get_logger().debug(f"Collision check failed: {exc}")
+        #                     in_collision = False
+
+        #             if in_collision:
+        #                 if best_colliding is None or metrics < best_colliding[0]:
+        #                     best_colliding = (metrics, joint_positions, candidate_pose)
+        #                 continue
+                    
+
+        #             if metrics < best_metrics:
+        #                 best_metrics = metrics
+        #                 best_joint_positions = joint_positions
+        #                 best_pose = candidate_pose
+                
+
+        # if best_joint_positions is None:
+        #     if best_colliding is not None:
+        #         coll_metrics, coll_joints, coll_pose = best_colliding
+        #         joint_str = ", ".join(f"{v:.4f}" for v in coll_joints)
+        #         if coll_pose is not None:
+        #             self.get_logger().warn(str([
+        #                 "Best IK solution remains in collision (Δq=%.4f, xy=%.4f, zΔ=%.4f) "
+        #                 "at pose (%.3f, %.3f, %.3f); joints [%s]",
+        #                 coll_metrics[0],
+        #                 coll_metrics[1],
+        #                 coll_metrics[2],
+        #                 coll_pose.position.x,
+        #                 coll_pose.position.y,
+        #                 coll_pose.position.z,
+        #                 joint_str,
+        #             ])
+        #             )
+        #         else:
+        #             self.get_logger().warn(
+        #                 str([
+        #                 "Best IK solution remains in collision (Δq=%.4f, xy=%.4f, zΔ=%.4f); joints [%s]",
+        #                 coll_metrics[0],
+        #                 coll_metrics[1],
+        #                 coll_metrics[2],
+        #                 joint_str,
+        #                 ])
+        #             )
+        #     self.get_logger().error(
+        #         "Unable to find an IK solution near the requested pose; keeping current configuration."
+        #     )
+        #     candidate_pose = Pose()
+        #     candidate_pose.position.x = x 
+        #     candidate_pose.position.y = y 
+        #     candidate_pose.position.z = 0.2
+        #     candidate_pose.orientation.x = orientation_candidates[0][0]
+        #     candidate_pose.orientation.y = orientation_candidates[0][1]
+        #     candidate_pose.orientation.z = orientation_candidates[0][2]
+        #     candidate_pose.orientation.w = orientation_candidates[0][3]
+
+        #     seed_state = copy.deepcopy(current_state)
+        #     try:
+        #         success = seed_state.set_from_ik(
+        #             group_name,
+        #             candidate_pose,
+        #             tip_name=eef_link,
+        #             timeout=0.2,
+        #         )
+        #     except RuntimeError as exc:
+        #         self.get_logger().debug(f"IK call failed: {exc}")
+        #         success = False
 
         
-        if plan_result:
-            self.get_logger().info("Executing plan...")
-            self.moveit.execute(plan_result.trajectory, controllers=[])
-            return True
-        else:
-            self.get_logger().warn("Planning failed.")
+        #     seed_state.update()
+
+        #     try:
+        #         joint_positions = list(
+        #             seed_state.get_joint_group_positions(group_name)
+        #         )
+        #     except RuntimeError as exc:
+        #         self.get_logger().warn(f"Failed to read IK solution joints: {exc}")
+        #     best_metrics = [joint_positions,0,0]
+
+        # best_joint_positions=joint_positions
+        # joint_distance = best_metrics[0]
+        # pos_error = best_metrics[1]
+        # z_error = best_metrics[2]
+        # if pos_error > 1e-3:
+        #     self.get_logger().warn(
+        #         f"Using approximate IK solution; xy deviation {pos_error:.3f} m."
+        #     )
+        # # if z_error > 1e-3 and best_pose is not None:
+        # #     self.get_logger().debug(
+        # #         "Chosen IK solution deviates along Z by %.3f m (target range %.3f-%.3f m).",
+        # #         z_error,
+        # #         z_min,
+        # #         z_max,
+        # #     )
+
+        # # if joint_distance < 1e-6:
+        # #     self.get_logger().info("Already at the closest joint configuration; no motion required.")
+        # #     return True
+
+        # target_state = copy.deepcopy(current_state)
+        # try:
+        #     target_state.set_joint_group_positions(group_name, best_joint_positions)
+        # except RuntimeError as exc:
+        #     self.get_logger().error(f"Failed to apply target joint positions: {exc}")
+        #     return False
+        # target_state.update()
+
+        # self.planning_component.set_start_state_to_current_state()
+        # self.planning_component.set_goal_state(robot_state=target_state)
+
+        # joint_str = ", ".join(f"{v:.4f}" for v in best_joint_positions)
+       
+
+        plan_result = self.planning_component.plan()
+        if not plan_result:
+            self.get_logger().warn("Planning failed for the computed joint target.")
             return False
+
+
+        try:
+            execution_result = self.moveit.execute(plan_result.trajectory, controllers=[])
+        except RuntimeError as exc:
+            self.get_logger().error(f"Trajectory execution threw an exception: {exc}")
+            return False
+
+        if isinstance(execution_result, bool) and not execution_result:
+            self.get_logger().error("MoveIt reported failure when starting execution.")
+            return False
+        self.wait_until_manipulator_stopped()
+        manager = self.moveit.get_trajectory_execution_manager()
+        if manager is not None:
+            try:
+                wait_ok = manager.wait_for_execution()
+                if isinstance(wait_ok, bool) and not wait_ok:
+                    self.get_logger().warn("Trajectory execution did not complete cleanly.")
+            except RuntimeError as exc:
+                self.get_logger().warn(f"Failed to wait for execution completion: {exc}")
+
+        return True
 
 
 

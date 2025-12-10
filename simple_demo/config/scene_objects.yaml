@@ -5,8 +5,8 @@ objects:
     frame_id: base_link
     type: BOX
     dimensions: [1.28, 1.18, 0.04]     # [x, y, z]
-    position: { x: -0.29, y: 0.0, z: 0.0 }
-    rpy:      { roll: 0.0, pitch: 0.0, yaw: 0.0 }
+    position: { x: -0.29, y: 0.0, z: -0.03 }
+    rpy:      { roll: 0.0, pitch: 0.0, yaw: 0.00 }
 
   - id: back
     frame_id: base_link
