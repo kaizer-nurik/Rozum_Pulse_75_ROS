@@ -87,6 +87,7 @@ class HighLevelInterface(Node):
         self.moveit = MoveItPy(node_name="moveit_py")
         group_name = "arm"
         self.planning_component = self.moveit.get_planning_component(group_name)
+        
 
         # Start planning scene monitor (for current state updates)
         self.scene_monitor = self.moveit.get_planning_scene_monitor()

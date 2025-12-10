@@ -41,3 +41,6 @@ ros2 service call /pick_place_teddy_to_container std_srvs/srv/Trigger
 ros2 launch rosbridge_server rosbridge_websocket_launch.xml
 
 ros2 param set /rozum_joint_controller rozum.speed_percent 50
+
+
+high_level_manipulator_interface
