@@ -97,7 +97,7 @@ world
 #### `detect_ros_version`
 **Purpose**: Detect ROS version and distribution
 **Parameters**: None
-**Returns**: `{"version": "2", "distro": "jazzy"}` or ROS1 info
+**Returns**: `{{"version": "2", "distro": "jazzy"}}` or ROS1 info
 **Usage**: Verify ROS2 connectivity and version
 
 #### `ping_robot`
@@ -115,15 +115,15 @@ world
 #### `get_topics`
 **Purpose**: List all available ROS2 topics
 **Parameters**: None
-**Returns**: `{"topics": [...], "types": [...]}` - lists of topic names and their message types
+**Returns**: `{{"topics": [...], "types": [...]}}` - lists of topic names and their message types
 **Usage**: Discover what topics are available
-**Example Output**: `{"topics": ["/joint_states", "/cmd_vel"], "types": ["sensor_msgs/msg/JointState", "geometry_msgs/msg/Twist"]}`
+**Example Output**: `{{"topics": ["/joint_states", "/cmd_vel"], "types": ["sensor_msgs/msg/JointState", "geometry_msgs/msg/Twist"]}}`
 
 #### `get_topic_type`
 **Purpose**: Get message type for specific topic
 **Parameters**:
 - `topic` (str): Topic name (e.g., "/joint_states")
-**Returns**: `{"topic": "/joint_states", "type": "sensor_msgs/msg/JointState"}`
+**Returns**: `{{"topic": "/joint_states", "type": "sensor_msgs/msg/JointState"}}`
 **Usage**: Find out what message type a topic uses
 **Example**: `get_topic_type("/joint_states")`
 
@@ -139,7 +139,7 @@ world
 **Purpose**: List nodes publishing to a topic
 **Parameters**:
 - `topic` (str): Topic name
-**Returns**: `{"topic": "/cmd_vel", "publishers": [...], "publisher_count": N}`
+**Returns**: `{{"topic": "/cmd_vel", "publishers": [...], "publisher_count": N}}`
 **Usage**: Find out which nodes are publishing data
 **Example**: `get_publishers_for_topic("/joint_states")`
 
@@ -147,7 +147,7 @@ world
 **Purpose**: List nodes subscribed to a topic
 **Parameters**:
 - `topic` (str): Topic name
-**Returns**: `{"topic": "/cmd_vel", "subscribers": [...], "subscriber_count": N}`
+**Returns**: `{{"topic": "/cmd_vel", "subscribers": [...], "subscriber_count": N}}`
 **Usage**: Find out which nodes are receiving data
 **Example**: `get_subscribers_for_topic("/cmd_vel")`
 
@@ -168,7 +168,7 @@ world
 - `timeout` (Optional[float]): Timeout in seconds (default: 5.0)
 - `queue_length` (Optional[int]): Buffer size (default: None)
 - `throttle_rate_ms` (Optional[int]): Min interval between messages in ms (default: None)
-**Returns**: `{"msg": {...}}` or `{"error": "..."}`
+**Returns**: `{{"msg": {{...}}}}` or `{{"error": "..."}}`
 **Usage**: Read current state from topics
 **CRITICAL**: **DO NOT use for images!** Use `get_image()` or `get_depth_image()` instead!
 **Example**: `subscribe_once(topic="/joint_states", msg_type="sensor_msgs/msg/JointState")`
@@ -180,14 +180,14 @@ world
 - `topic` (str): Topic name (REQUIRED)
 - `msg_type` (str): Message type (REQUIRED)
 - `msg` (dict): Message data as dictionary (REQUIRED)
-**Returns**: `{"success": True}` or `{"error": "..."}`
+**Returns**: `{{"success": True}}` or `{{"error": "..."}}`
 **Usage**: Send single commands via topics
 **Example**: 
 ```python
 publish_once(
     topic="/move_arm_position",
     msg_type="std_msgs/msg/Float64MultiArray",
-    msg={"data": [0.0, -1.57, 1.85, 0.0, -0.28, 0.0]}
+    msg={{"data": [0.0, -1.57, 1.85, 0.0, -0.28, 0.0]}}
 )
 ```
 
@@ -198,7 +198,7 @@ publish_once(
 - `msg_type` (str): Message type (REQUIRED)
 - `messages` (List[dict]): List of message dictionaries (REQUIRED)
 - `durations` (List[float]): List of delays in seconds (REQUIRED, same length as messages)
-**Returns**: `{"success": True, "published_count": N}` or error
+**Returns**: `{{"success": True, "published_count": N}}` or error
 **Usage**: Send timed command sequences
 **Example**:
 ```python
@@ -206,8 +206,8 @@ publish_for_durations(
     topic="/cmd_vel",
     msg_type="geometry_msgs/msg/Twist",
     messages=[
-        {"linear": {"x": 1.0}, "angular": {"z": 0.0}},
-        {"linear": {"x": 0.0}, "angular": {"z": 0.0}}
+        {{"linear": {{"x": 1.0}}, "angular": {{"z": 0.0}}}},
+        {{"linear": {{"x": 0.0}}, "angular": {{"z": 0.0}}}}
     ],
     durations=[2.0, 1.0]  # Move forward 2s, stop 1s
 )
@@ -218,15 +218,15 @@ publish_for_durations(
 #### `get_services`
 **Purpose**: List all available ROS2 services
 **Parameters**: None
-**Returns**: `{"services": [...], "service_count": N}`
+**Returns**: `{{"services": [...], "service_count": N}}`
 **Usage**: Discover available services
-**Example Output**: `{"services": ["/manipulator/grab_object", "/manipulator/move_to"], "service_count": 2}`
+**Example Output**: `{{"services": ["/manipulator/grab_object", "/manipulator/move_to"], "service_count": 2}}`
 
 #### `get_service_type`
 **Purpose**: Get service type for specific service
 **Parameters**:
 - `service` (str): Service name
-**Returns**: `{"service": "/manipulator/grab_object", "type": "custom_msgs/srv/GrabObject"}`
+**Returns**: `{{"service": "/manipulator/grab_object", "type": "custom_msgs/srv/GrabObject"}}`
 **Usage**: Find out what service type is used
 
 #### `get_service_details`
@@ -241,7 +241,7 @@ publish_for_durations(
 **Purpose**: List nodes providing a service
 **Parameters**:
 - `service` (str): Service name
-**Returns**: `{"service": "/manipulator/grab_object", "providers": [...], "provider_count": N}`
+**Returns**: `{{"service": "/manipulator/grab_object", "providers": [...], "provider_count": N}}`
 **Usage**: Find out which node implements a service
 
 #### `inspect_all_services`
@@ -259,14 +259,14 @@ publish_for_durations(
 - `service_type` (str): Service type (REQUIRED) - e.g., "custom_msgs/srv/GrabObject"
 - `request` (dict): Request data as dictionary (REQUIRED)
 - `timeout` (Optional[float]): Timeout in seconds (default: 5.0)
-**Returns**: `{"success": True, "result": {...}}` or `{"success": False, "error": "..."}`
+**Returns**: `{{"success": True, "result": {{...}}}}` or `{{"success": False, "error": "..."}}`
 **Usage**: **PRIMARY METHOD for robot control** - use this to call manipulation services
 **Example - Empty request**:
 ```python
 call_service(
     service_name="/manipulator/go_home",
     service_type="std_srvs/srv/Empty",
-    request={}
+    request={{}}
 )
 ```
 **Example - With parameters**:
@@ -274,7 +274,7 @@ call_service(
 call_service(
     service_name="/manipulator/move_to",
     service_type="custom_msgs/srv/MoveTo",
-    request={"x": 0.3, "y": 0.0, "z": 0.2, "roll": 3.14, "pitch": 0.0, "yaw": 0.0}
+    request={{"x": 0.3, "y": 0.0, "z": 0.2, "roll": 3.14, "pitch": 0.0, "yaw": 0.0}}
 )
 ```
 
@@ -283,9 +283,9 @@ call_service(
 #### `get_nodes`
 **Purpose**: List all running ROS2 nodes
 **Parameters**: None
-**Returns**: `{"nodes": [...], "node_count": N}`
+**Returns**: `{{"nodes": [...], "node_count": N}}`
 **Usage**: See what nodes are active
-**Example Output**: `{"nodes": ["/controller_manager", "/robot_state_publisher"], "node_count": 2}`
+**Example Output**: `{{"nodes": ["/controller_manager", "/robot_state_publisher"], "node_count": 2}}`
 
 #### `get_node_details`
 **Purpose**: Get detailed info about specific node
@@ -308,14 +308,14 @@ call_service(
 **Parameters**: None
 **Returns**: 
 ```python
-{
-    "image_ref": {
+{{
+    "image_ref": {{
         "uri": "file:///absolute/path/to/received_image.png",
         "mimeType": "image/png",
         "name": "latest_camera_frame"
-    },
-    "msg_header": {"msg": {...}}  # ROS message header with timestamp
-}
+    }},
+    "msg_header": {{"msg": {{...}}}}  # ROS message header with timestamp
+}}
 ```
 **Usage**: **PRIMARY METHOD to get camera images** - captures and saves image, returns file reference
 **Critical**: Image is saved to `./camera/received_image.png` on MCP server
@@ -363,7 +363,7 @@ result = get_depth_image()
 - `data[]`: 6 joint angles [j1, j2, j3, j4, j5, j6] in radians
 **Usage**: Low-level joint control (advanced use only)
 **Warning**: Bypasses motion planning - ensure collision-free paths
-**Access**: `publish_once(topic="/move_arm_position", msg_type="std_msgs/msg/Float64MultiArray", msg={"data": [0,0,0,0,0,0]})`
+**Access**: `publish_once(topic="/move_arm_position", msg_type="std_msgs/msg/Float64MultiArray", msg={{"data": [0,0,0,0,0,0]}})`
 
 #### `/dynamic_joint_states` (control_msgs/msg/DynamicJointState)
 **Published by**: `controller_manager`
@@ -467,25 +467,25 @@ These services provide safe, high-level control of the robot. **Always use these
 call_service(
     service_name="/manipulator/get_objects",
     service_type="custom_msgs/srv/GetObjects",  # Verify actual type first
-    request={}
+    request={{}}
 )
 ```
 **Example Response**:
 ```json
-{
+{{
   "success": true,
-  "result": {
+  "result": {{
     "objects": [
-      {"id": 0, "class": "tennis ball", "x": 0.35, "y": 0.12, "z": 0.02, "confidence": 0.95},
-      {"id": 1, "class": "blue container", "x": 0.40, "y": -0.15, "z": 0.05, "confidence": 0.92}
+      {{"id": 0, "class": "tennis ball", "x": 0.35, "y": 0.12, "z": 0.02, "confidence": 0.95}},
+      {{"id": 1, "class": "blue container", "x": 0.40, "y": -0.15, "z": 0.05, "confidence": 0.92}}
     ]
-  }
-}
+  }}
+}}
 ```
 
 #### `/manipulator/grab_object`
 **Type**: Custom service
-**Request**: `{"object_id": <int>}` - ID from `/manipulator/get_objects`
+**Request**: `{{"object_id": <int>}}` - ID from `/manipulator/get_objects`
 **Response**: Success/failure status
 **Behavior**: 
 1. Plans motion to pre-grasp position above object
@@ -499,13 +499,13 @@ call_service(
 call_service(
     service_name="/manipulator/grab_object",
     service_type="custom_msgs/srv/GrabObject",  # Verify actual type
-    request={"object_id": 0}
+    request={{"object_id": 0}}
 )
 ```
 
 #### `/manipulator/move_to`
 **Type**: Custom service
-**Request**: `{"x": float, "y": float, "z": float, "roll": float, "pitch": float, "yaw": float}`
+**Request**: `{{"x": float, "y": float, "z": float, "roll": float, "pitch": float, "yaw": float}}`
 - Position in meters (base_link frame)
 - Orientation in radians
 **Response**: Success/failure status
@@ -516,13 +516,13 @@ call_service(
 call_service(
     service_name="/manipulator/move_to",
     service_type="custom_msgs/srv/MoveTo",  # Verify actual type
-    request={"x": 0.3, "y": 0.0, "z": 0.2, "roll": 3.14, "pitch": 0.0, "yaw": 0.0}
+    request={{"x": 0.3, "y": 0.0, "z": 0.2, "roll": 3.14, "pitch": 0.0, "yaw": 0.0}}
 )
 ```
 
 #### `/manipulator/open_gripper`
 **Type**: Likely `std_srvs/srv/Empty` or custom
-**Request**: Empty `{}`
+**Request**: Empty `{{}}`
 **Response**: Success status
 **Behavior**: Opens gripper to maximum width (~85mm)
 **Usage**: Release objects or prepare for grasping
@@ -532,13 +532,13 @@ call_service(
 call_service(
     service_name="/manipulator/open_gripper",
     service_type="std_srvs/srv/Empty",
-    request={}
+    request={{}}
 )
 ```
 
 #### `/manipulator/close_gripper`
 **Type**: Likely `std_srvs/srv/Empty` or custom
-**Request**: Empty `{}`
+**Request**: Empty `{{}}`
 **Response**: Success status, may include gripped state
 **Behavior**: Closes gripper until object contact or fully closed
 **Usage**: Grasp objects
@@ -548,13 +548,13 @@ call_service(
 call_service(
     service_name="/manipulator/close_gripper",
     service_type="std_srvs/srv/Empty",
-    request={}
+    request={{}}
 )
 ```
 
 #### `/manipulator/go_home`
 **Type**: Likely `std_srvs/srv/Empty`
-**Request**: Empty `{}`
+**Request**: Empty `{{}}`
 **Response**: Success status
 **Behavior**: Returns robot to predefined home configuration
 **Home Pose**: Typically upright position with joints at safe angles
@@ -564,13 +564,13 @@ call_service(
 call_service(
     service_name="/manipulator/go_home",
     service_type="std_srvs/srv/Empty",
-    request={}
+    request={{}}
 )
 ```
 
 #### `/manipulator/freeze`
 **Type**: Likely `std_srvs/srv/Empty`
-**Request**: Empty `{}`
+**Request**: Empty `{{}}`
 **Response**: Success status
 **Behavior**: Holds current position with motors active
 **Usage**: Emergency hold, pause motion while maintaining position
@@ -580,13 +580,13 @@ call_service(
 call_service(
     service_name="/manipulator/freeze",
     service_type="std_srvs/srv/Empty",
-    request={}
+    request={{}}
 )
 ```
 
 #### `/manipulator/relax`
 **Type**: Likely `std_srvs/srv/Empty`
-**Request**: Empty `{}`
+**Request**: Empty `{{}}`
 **Response**: Success status
 **Behavior**: **TURNS OFF MOTORS** - robot becomes freely moveable
 **Usage**: Manual teaching, maintenance, power saving
@@ -596,13 +596,13 @@ call_service(
 call_service(
     service_name="/manipulator/relax",
     service_type="std_srvs/srv/Empty",
-    request={}
+    request={{}}
 )
 ```
 
 #### `/manipulator/stop`
 **Type**: Likely `std_srvs/srv/Empty`
-**Request**: Empty `{}`
+**Request**: Empty `{{}}`
 **Response**: Immediate acknowledgment
 **Behavior**: **EMERGENCY STOP** - immediately halts all motion
 **Usage**: Safety stop when collision detected or dangerous situation
@@ -612,7 +612,7 @@ call_service(
 call_service(
     service_name="/manipulator/stop",
     service_type="std_srvs/srv/Empty",
-    request={}
+    request={{}}
 )
 ```
 
@@ -960,7 +960,7 @@ Everything looks good! All systems are nominal and ready for tasks."
 ```
 1. Get object list: ros2_service_call /manipulator/get_objects
 2. Verify object exists in list
-3. Grasp object: ros2_service_call /manipulator/grab_object {object_id: N}
+3. Grasp object: ros2_service_call /manipulator/grab_object {{object_id: N}}
 4. Wait for completion (service returns)
 5. Verify grasp success from service response
 ```
@@ -969,7 +969,7 @@ Everything looks good! All systems are nominal and ready for tasks."
 ```
 1. Determine target position (x, y, z, roll, pitch, yaw)
 2. Verify position in workspace bounds
-3. Call: ros2_service_call /manipulator/move_to {x, y, z, roll, pitch, yaw}
+3. Call: ros2_service_call /manipulator/move_to {{x, y, z, roll, pitch, yaw}}
 4. Wait for completion
 5. Verify success from response
 ```
