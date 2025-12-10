@@ -7,59 +7,91 @@ planning_scene_monitor_options:
   monitored_planning_scene_topic: "/moveit_cpp/monitored_planning_scene"
   wait_for_initial_state_timeout: 10.0
 
+# === Объявляем, какие planning pipelines вообще существуют ===
 planning_pipelines:
-  #namespace: "moveit_cpp"  # optional, default is ~
-  pipeline_names: ["ompl"]
-ompl:
-  planning_plugin: ompl_interface/OMPLPlanner
+  # namespace можно не трогать, оставим дефолт
+  # namespace: "moveit_cpp"
+  pipeline_names: ["rrtstar", "ompl"]
+
+# === Конфиг для твоего кастомного RRT* pipeline ===
+rrtstar:
+  # Список плагинов (обязательно список, даже если один)
   planning_plugins:
-    - ompl_interface/OMPLPlanner
-  # To optionally use Ruckig for jerk-limited smoothing, add this line to the request adapters below
-  # default_planning_request_adapters/AddRuckigTrajectorySmoothing
+    - "rozum_rrtstar_planner/RRTStarPlanner"
+
+  # Адаптеры такие же, как в ompl_planning.yaml
   request_adapters:
-    - default_planning_request_adapters/ResolveConstraintFrames
-    - default_planning_request_adapters/ValidateWorkspaceBounds
-    # - default_planning_request_adapters/CheckStartStateBounds
-    # - default_planning_request_adapters/CheckStartStateCollision
+    - "default_planning_request_adapters/ResolveConstraintFrames"
+    - "default_planning_request_adapters/ValidateWorkspaceBounds"
+    - "default_planning_request_adapters/CheckStartStateBounds"
+    - "default_planning_request_adapters/CheckStartStateCollision"
+
   response_adapters:
-    - default_planning_response_adapters/AddTimeOptimalParameterization
-    - default_planning_response_adapters/ValidateSolution
-    - default_planning_response_adapters/DisplayMotionPath
+    - "default_planning_response_adapters/AddTimeOptimalParameterization"
+    - "default_planning_response_adapters/ValidateSolution"
+    - "default_planning_response_adapters/DisplayMotionPath"
+
+# Отдельный YAML с параметрами для твоего RRT*
+rrtstar_planning:
+  package: "new_moveit"
+  path: "config/rrtstar_planning.yaml"
+
+# === Конфиг для OMPL pipeline ===
+ompl:
+  # Старое поле (можно оставить для совместимости)
+  planning_plugin: "ompl_interface/OMPLPlanner"
+
+  # Новое — именно его читает PlanningPipeline (список!)
+  planning_plugins:
+    - "ompl_interface/OMPLPlanner"
+
+  # Request / response адаптеры
+  request_adapters:
+    - "default_planning_request_adapters/ResolveConstraintFrames"
+    - "default_planning_request_adapters/ValidateWorkspaceBounds"
+    # эти можно включить/выключить по желанию:
+    # - "default_planning_request_adapters/CheckStartStateBounds"
+    # - "default_planning_request_adapters/CheckStartStateCollision"
+
+  response_adapters:
+    - "default_planning_response_adapters/AddTimeOptimalParameterization"
+    - "default_planning_response_adapters/ValidateSolution"
+    - "default_planning_response_adapters/DisplayMotionPath"
+
+  # Настройки OMPL-планера
   planner_configs:
     RRTstarkConfigDefault:
-      type: geometric::RRTstar
-      optimization_objective: PathLengthOptimizationObjective   # or PathLengthOptimizationObjective, MechanicalWorkOptimizationObjective, MinimaxObjective, StateCostIntegralObjective
+      type: "geometric::RRTstar"
+      optimization_objective: "PathLengthOptimizationObjective"
       range: 0.0
       goal_bias: 0.05
       delay_collision_checking: 1
-      # Optional (if your MoveIt build exposes it): stop when “good enough”
-      # cost_threshold: 0.50
-  # Define planner(s) for each move_group
+
+  # Привязка конфигов к группам MoveIt (joint_model_group'ы)
   arm:
     planner_configs:
-      - RRTstarkConfigDefault
+      - "RRTstarkConfigDefault"
+
   gripper:
     planner_configs:
-      - RRTstarkConfigDefault
-  # Add additional planning pipeline config here
+      - "RRTstarkConfigDefault"
+
+# === Общие параметры запроса планирования по умолчанию ===
 plan_request_params:
   planning_attempts: 1
-  planning_pipeline: ompl
+
+  # Каким pipeline пользоваться по умолчанию
+  # Можешь поставить "rrtstar", если хочешь через свой планер сразу:
+  planning_pipeline: "rrtstar"
+  # или "ompl"
+
   planner_id: "RRTstarkConfigDefault"
+
   max_velocity_scaling_factor: 1.0
   max_acceleration_scaling_factor: 1.0
   planning_time: 3.0
+
+  # Эти параметры используются твоим RRT* (можешь игнорить OMPL)
   cost_threshold: 0.50
   range: 2.0
   goal_bias: 0.7
-
-
-
-# ompl_rrt_star:
-#   plan_request_params:
-#     planning_attempts: 1
-#     planning_pipeline: ompl            # use the OMPL pipeline
-#     planner_id: "RRTstarkConfigDefault"
-#     planning_time: 3.0                 # give RRT* more time to improve
-#     max_velocity_scaling_factor: 1.0
-#     max_acceleration_scaling_factor: 1.0
