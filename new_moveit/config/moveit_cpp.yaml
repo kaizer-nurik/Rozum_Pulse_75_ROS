@@ -86,7 +86,7 @@ plan_request_params:
   planning_pipeline: ["rrtstar"]
   # или "ompl"
 
-  planner_id: "RRTstarkConfigDefault"
+  planner_id: "rozum_rrtstar_planner/RRTStarPlanner"
 
   max_velocity_scaling_factor: 1.0
   max_acceleration_scaling_factor: 1.0

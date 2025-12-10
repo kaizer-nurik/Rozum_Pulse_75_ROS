@@ -25,16 +25,16 @@ from moveit_configs_utils.launch_utils import (
 def generate_launch_description():
     moveit_config = MoveItConfigsBuilder("rozum75_with_gripper", package_name="new_moveit").to_moveit_configs()
 
-    # moveit_config = (
-    #     MoveItConfigsBuilder(
-    #         "rozum75_with_gripper", package_name="new_moveit"
-    #     )
-    #     .trajectory_execution(file_path="config/moveit_controllers.yaml")
-    #     .moveit_cpp(
-    #         file_path = "config/moveit_cpp.yaml"
-    #     )
-    #     .to_moveit_configs()
-    # )
+    moveit_config = (
+        MoveItConfigsBuilder(
+            "rozum75_with_gripper", package_name="new_moveit"
+        )
+        .trajectory_execution(file_path="config/moveit_controllers.yaml")
+        .moveit_cpp(
+            file_path = "config/moveit_cpp.yaml"
+        )
+        .to_moveit_configs()
+    )
     
     launch_package_path = moveit_config.package_path
 

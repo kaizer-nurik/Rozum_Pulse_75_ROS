@@ -1,19 +1,21 @@
 # Минимальный пример для самописного планера RRT*
 
 # Имя твоего planner plugin'а из plugin_description.xml
-planning_plugin: ["rozum_rrtstar_planner/RRTStarPlanner"]
+planning_plugins:
+  - rozum_rrtstar_planner/RRTStarPlanner
+
 
 # Можно оставить те же адаптеры, что и у OMPL, чтобы всё вело себя привычно
-request_adapters: >
-  default_planning_request_adapters/ResolveConstraintFrames
-  default_planning_request_adapters/ValidateWorkspaceBounds
-  default_planning_request_adapters/CheckStartStateBounds
-  default_planning_request_adapters/CheckStartStateCollision
+request_adapters: 
+  - default_planning_request_adapters/ResolveConstraintFrames
+  - default_planning_request_adapters/ValidateWorkspaceBounds
+  - default_planning_request_adapters/CheckStartStateBounds
+  - default_planning_request_adapters/CheckStartStateCollision
 
-response_adapters: >
-  default_planning_response_adapters/AddTimeOptimalParameterization
-  default_planning_response_adapters/ValidateSolution
-  default_planning_response_adapters/DisplayMotionPath
+# response_adapters: 
+#   default_planning_response_adapters/AddTimeOptimalParameterization
+#   default_planning_response_adapters/ValidateSolution
+#   default_planning_response_adapters/DisplayMotionPath
 
 # Ниже — чисто твои параметры для RRT* (ты их читаешь в solve() через параметры ROS2)
 max_iterations: 3000
