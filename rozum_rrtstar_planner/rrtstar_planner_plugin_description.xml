@@ -1,0 +1,10 @@
+<library path="librozum_rrtstar_planner">
+  <class
+      name="rozum_rrtstar_planner/RRTStarPlanner"
+      type="rozum_rrtstar_planner::RRTStarPlannerManager"
+      base_class_type="planning_interface::PlannerManager">
+    <description>
+      RRT* planner plugin for Rozum Pulse 75 (joint space)
+    </description>
+  </class>
+</library>
