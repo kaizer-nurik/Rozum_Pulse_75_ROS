@@ -195,6 +195,7 @@ bool RRTStarInterface::solve(
   }
 
   return false;
+  
 }
 
 }  // namespace rozum_rrtstar_planner
