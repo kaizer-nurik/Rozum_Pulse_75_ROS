@@ -22,13 +22,13 @@ docker run -it --rm   --net=host   -e DISPLAY=$DISPLAY   -e QT_X11_NO_MITSHM=1  
 
 apt install rapidjson-dev ros-jazzy-control* ros-jazzy-serial-driver ros-jazzy-asio-cmake-module ros-jazzy-librealsense2
 
-ros2 launch rozum_moveit demo.launch.py
+////LEGACY ros2 launch rozum_moveit demo.launch.py
 
 sudo chmod 777 /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_BG004CBE-if00-port0
 
 ros2 launch new_moveit demo.launch.py
 
-. /opt/ros/jazzy/env/bin/activate #(do before colcon build)
+. /opt/ros/jazzy/env/bin/activate #(do before colcon build, or you will get import error in python)
 ros2 launch realsense_to_scene_transform dual_aruco_with_tf.launch.py
 ros2 service call /calibrate_realsense_position std_srvs/srv/Trigger
 

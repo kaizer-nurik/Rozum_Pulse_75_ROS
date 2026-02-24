@@ -93,6 +93,6 @@ plan_request_params:
   planning_time: 3.0
 
   # Эти параметры используются твоим RRT* (можешь игнорить OMPL)
-  cost_threshold: 0.50
+  cost_threshold: 0.90
   range: 2.0
   goal_bias: 0.7
