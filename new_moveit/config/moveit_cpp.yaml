@@ -9,7 +9,7 @@ planning_scene_monitor_options:
 
 planning_pipelines:
   #namespace: "moveit_cpp"  # optional, default is ~
-  pipeline_names: ["ompl"]
+  pipeline_names: ["ompl", "pilz_industrial_motion_planner"]
 ompl:
   planning_plugin: ompl_interface/OMPLPlanner
   planning_plugins:
@@ -42,16 +42,25 @@ ompl:
     planner_configs:
       - RRTstarkConfigDefault
   # Add additional planning pipeline config here
+
+pilz_industrial_motion_planner:
+  planning_plugins:
+    - pilz_industrial_motion_planner/CommandPlanner
+  request_adapters:
+    - default_planning_request_adapters/ResolveConstraintFrames
+    - default_planning_request_adapters/ValidateWorkspaceBounds
+  response_adapters:
+    - default_planning_response_adapters/AddTimeOptimalParameterization
+    - default_planning_response_adapters/ValidateSolution
+    - default_planning_response_adapters/DisplayMotionPath
+
 plan_request_params:
-  planning_attempts: 1
+  planning_attempts: 3
   planning_pipeline: ompl
-  planner_id: "RRTstarkConfigDefault"
+  planner_id: "RRTConnectkConfigDefault"
   max_velocity_scaling_factor: 1.0
   max_acceleration_scaling_factor: 1.0
-  planning_time: 3.0
-  cost_threshold: 0.50
-  range: 2.0
-  goal_bias: 0.7
+  planning_time: 1.5
 
 
 
